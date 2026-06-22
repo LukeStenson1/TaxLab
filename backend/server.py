@@ -6,6 +6,7 @@ import os
 import re
 import json
 import uuid
+import asyncio
 import tempfile
 import logging
 from datetime import datetime, timezone, timedelta
@@ -292,11 +293,24 @@ async def run_gemini_analysis(pdf_path: str, context: dict) -> dict:
     ).with_model("gemini", "gemini-2.5-flash")
     pdf_file = FileContentWithMimeType(file_path=pdf_path, mime_type="application/pdf")
     user_msg = UserMessage(text=build_analysis_prompt(context), file_contents=[pdf_file])
-    try:
-        result = await chat.send_message(user_msg)
-    except Exception as e:
-        logger.exception("Gemini call failed")
-        raise HTTPException(status_code=502, detail=f"Analysis failed: {str(e)}")
+
+    result = None
+    last_err = None
+    for attempt in range(3):
+        try:
+            result = await chat.send_message(user_msg)
+            break
+        except Exception as e:
+            last_err = e
+            transient = any(k in str(e).lower() for k in ["503", "unavailable", "overloaded", "high demand", "429", "rate"])
+            logger.warning("Gemini attempt %s failed: %s", attempt + 1, e)
+            if transient and attempt < 2:
+                await asyncio.sleep(2 * (attempt + 1))
+                continue
+            break
+    if result is None:
+        logger.exception("Gemini call failed", exc_info=last_err)
+        raise HTTPException(status_code=503, detail="The analyzer is temporarily busy. Please try again in a moment.")
     text = result if isinstance(result, str) else str(result)
     try:
         return _extract_json(text)
