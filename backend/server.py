@@ -4,6 +4,7 @@ load_dotenv()
 
 import os
 import re
+import io
 import json
 import uuid
 import asyncio
@@ -17,8 +18,10 @@ import jwt
 from bson import ObjectId
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
 from motor.motor_asyncio import AsyncIOMotorClient
+from fpdf import FPDF
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContentWithMimeType
 from emergentintegrations.payments.stripe.checkout import (
@@ -26,6 +29,8 @@ from emergentintegrations.payments.stripe.checkout import (
     CheckoutSessionRequest,
     CheckoutStatusResponse,
 )
+
+import tax_reference
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("taxlens")
@@ -214,8 +219,16 @@ async def delete_account(response: Response, user: dict = Depends(get_current_us
 # ---------------------------------------------------------------------------
 ANALYSIS_SYSTEM_PROMPT = """You are a meticulous US tax analyst AI for an educational product called TaxLens.
 You read IRS tax return PDFs (Form 1040 and schedules) and produce plain-English, educational insights.
-You NEVER give tax advice. You explain what the numbers mean and what the user should ask their CPA.
-You ALWAYS respond with ONLY valid minified JSON. No markdown fences, no prose outside the JSON."""
+
+GROUNDING RULES (critical):
+- Base every threshold, limit, bracket, and calculation STRICTLY on the OFFICIAL IRS REFERENCE FIGURES
+  provided in the user message for the relevant tax year. These come from official IRS Revenue Procedures,
+  COLA notices, and publications. Do NOT use figures from memory and NEVER invent thresholds or limits.
+- First determine the tax year of the return, then use ONLY that year's official figures.
+- Methodology must follow IRS rules (Form 1040, Schedules C/D/E, Form 8960 NIIT, Section 199A QBI,
+  Schedule 8812 CTC, education credits AOTC/LLC per IRS Pub 970).
+- You NEVER give tax advice. You explain what the numbers mean and what to ask a CPA.
+- You ALWAYS respond with ONLY valid minified JSON. No markdown fences, no prose outside the JSON."""
 
 
 def build_analysis_prompt(context: dict) -> str:
@@ -227,6 +240,8 @@ USER CONTEXT:
 - Has self-employment income: {context.get('selfEmployment')}
 - Primary financial goal this year: {context.get('goal')}
 - Major life changes expected this year: {context.get('lifeChanges')}
+
+{tax_reference.reference_prompt_block()}
 
 Return ONLY a JSON object with EXACTLY this structure:
 {{
@@ -265,6 +280,7 @@ Return ONLY a JSON object with EXACTLY this structure:
 Rules:
 - Only include insight modules that are RELEVANT given the numbers and the user's context.
 - Rank the insights array by dollarImpact DESCENDING.
+- Use ONLY the official IRS reference figures above for the return's tax year in every calculation.
 - If a numeric field cannot be found, estimate reasonably or use 0; never use null for rawFields numbers.
 - Keep tone educational, not advisory. Output JSON only."""
 
@@ -366,6 +382,7 @@ async def analyze_return(
         "raw_fields": raw_fields,
         "insights": insights,
         "context": context,
+        "sources": tax_reference.sources_for_year(int(tax_year)),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     result = await db.tax_returns.insert_one(doc)
@@ -380,6 +397,7 @@ def serialize_return(doc: dict) -> dict:
         "rawFields": doc.get("raw_fields", {}),
         "insights": doc.get("insights", []),
         "context": doc.get("context", {}),
+        "sources": doc.get("sources") or tax_reference.sources_for_year(doc.get("tax_year")),
         "createdAt": doc.get("created_at"),
     }
 
@@ -409,6 +427,173 @@ async def delete_return(return_id: str, user: dict = Depends(get_current_user)):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid id")
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# PDF report generation
+# ---------------------------------------------------------------------------
+NAVY = (15, 23, 42)
+TEAL = (15, 118, 110)
+GREEN = (5, 150, 105)
+SLATE = (100, 116, 139)
+LIGHT = (241, 245, 249)
+
+
+def _clean(text) -> str:
+    """Make text safe for fpdf2's latin-1 core fonts."""
+    if text is None:
+        return ""
+    s = str(text)
+    repl = {"\u2014": "-", "\u2013": "-", "\u2018": "'", "\u2019": "'",
+            "\u201c": '"', "\u201d": '"', "\u2026": "...", "\u2022": "-", "\u00a0": " "}
+    for k, v in repl.items():
+        s = s.replace(k, v)
+    return s.encode("latin-1", "replace").decode("latin-1")
+
+
+def _usd(n) -> str:
+    try:
+        return "${:,.0f}".format(float(n or 0))
+    except Exception:
+        return "$0"
+
+
+def _pct(n) -> str:
+    try:
+        v = float(n or 0)
+        v = v * 100 if v <= 1 else v
+        return "{:.1f}%".format(v)
+    except Exception:
+        return "0.0%"
+
+
+def build_report_pdf(ret: dict) -> bytes:
+    rf = ret.get("rawFields", {}) or {}
+    insights = ret.get("insights", []) or []
+    sources = ret.get("sources", []) or []
+    year = ret.get("taxYear", "")
+
+    pdf = FPDF(format="A4")
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.add_page()
+    W = pdf.w - 2 * pdf.l_margin
+
+    # Header band
+    pdf.set_fill_color(*NAVY)
+    pdf.rect(0, 0, pdf.w, 34, "F")
+    pdf.set_xy(pdf.l_margin, 10)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 22)
+    pdf.cell(0, 9, "TaxLens", ln=1)
+    pdf.set_x(pdf.l_margin)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(180, 190, 205)
+    pdf.cell(0, 6, _clean(f"Tax Year {year} Insight Report"), ln=1)
+
+    pdf.set_y(42)
+    pdf.set_text_color(*NAVY)
+
+    # Summary stats
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 8, "Summary", ln=1)
+    pdf.ln(1)
+    stats = [
+        ("AGI", _usd(rf.get("agi"))),
+        ("Taxable income", _usd(rf.get("taxableIncome"))),
+        ("Total tax", _usd(rf.get("totalTax"))),
+        ("Effective rate", _pct(rf.get("effectiveRate"))),
+    ]
+    col_w = W / 4
+    pdf.set_fill_color(*LIGHT)
+    for label, _ in stats:
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(*SLATE)
+        pdf.cell(col_w, 6, _clean(label.upper()), border=0, align="L")
+    pdf.ln(6)
+    for _, value in stats:
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_text_color(*NAVY)
+        pdf.cell(col_w, 8, _clean(value), border=0, align="L")
+    pdf.ln(12)
+
+    # Insights
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_text_color(*NAVY)
+    pdf.cell(0, 8, _clean(f"Your Insights ({len(insights)}) - ranked by estimated dollar impact"), ln=1)
+    pdf.ln(2)
+
+    for idx, ins in enumerate(insights):
+        impact = ins.get("dollarImpact", 0) or 0
+        # Title row
+        pdf.set_draw_color(*LIGHT)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_text_color(*NAVY)
+        pdf.multi_cell(W * 0.72, 6, _clean(f"{idx + 1}. {ins.get('title', 'Insight')}"))
+        title_y = pdf.get_y()
+        # Impact (right aligned, on the first line of the title block)
+        pdf.set_xy(pdf.l_margin + W * 0.72, title_y - 6)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_text_color(*GREEN)
+        sign = "+" if impact >= 0 else "-"
+        pdf.cell(W * 0.28, 6, _clean(f"{sign}{_usd(abs(impact))}"), align="R")
+        pdf.set_xy(pdf.l_margin, title_y)
+
+        pdf.set_font("Helvetica", "", 10)
+        pdf.set_text_color(60, 70, 85)
+        pdf.multi_cell(W, 5, _clean(ins.get("explanation", "")))
+        pdf.ln(1)
+        # Ask your CPA box
+        pdf.set_fill_color(*LIGHT)
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_text_color(*SLATE)
+        pdf.multi_cell(W, 5, "ASK YOUR CPA", fill=True)
+        pdf.set_font("Helvetica", "I", 9)
+        pdf.set_text_color(40, 50, 65)
+        pdf.multi_cell(W, 5, _clean(ins.get("askYourCPA", "")), fill=True)
+        pdf.ln(5)
+
+    # Sources
+    if sources:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(*NAVY)
+        pdf.cell(0, 7, "Sources & Methodology", ln=1)
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(*SLATE)
+        for s in sources:
+            pdf.multi_cell(W, 4.5, _clean(f"- {s}"))
+        pdf.ln(2)
+
+    # Disclaimer
+    pdf.set_draw_color(*SLATE)
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(*SLATE)
+    pdf.multi_cell(
+        W, 4.5,
+        _clean("This is for educational purposes only and does not constitute tax or financial advice. "
+               "TaxLens calculations are grounded in official IRS figures for the relevant tax year and are "
+               "estimates intended to help you prepare questions for a licensed professional."),
+    )
+
+    out = pdf.output()
+    return bytes(out)
+
+
+@api.get("/returns/{return_id}/pdf")
+async def download_return_pdf(return_id: str, user: dict = Depends(get_current_user)):
+    try:
+        doc = await db.tax_returns.find_one({"_id": ObjectId(return_id), "user_id": str(user["_id"])})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid id")
+    if not doc:
+        raise HTTPException(status_code=404, detail="Return not found")
+    ret = serialize_return(doc)
+    pdf_bytes = build_report_pdf(ret)
+    filename = f"TaxLens_Report_{ret.get('taxYear', 'report')}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ---------------------------------------------------------------------------

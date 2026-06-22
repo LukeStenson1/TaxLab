@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, FileWarning } from "lucide-react";
+import { ArrowLeft, Loader2, FileWarning, Download, BookText } from "lucide-react";
 import api from "../lib/api";
 import InsightCard from "../components/InsightCard";
 import ScenarioSimulator from "../components/ScenarioSimulator";
@@ -23,6 +23,7 @@ export default function Analysis() {
   const [ret, setRet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     api
@@ -31,6 +32,25 @@ export default function Analysis() {
       .catch((e) => setError(e.response?.data?.detail || "Could not load this report."))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const res = await api.get(`/returns/${id}/pdf`, { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `TaxLens_Report_${ret?.taxYear || "report"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert("Could not generate the PDF. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -73,6 +93,15 @@ export default function Analysis() {
               </p>
             </div>
           </div>
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            data-testid="download-pdf-button"
+            className="inline-flex items-center gap-2 rounded-lg bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800 disabled:opacity-60"
+          >
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Download PDF
+          </button>
         </div>
       </div>
 
@@ -105,6 +134,32 @@ export default function Analysis() {
           Explore how common moves could change your estimated federal tax.
         </p>
         <ScenarioSimulator rawFields={rf} />
+
+        {/* Sources & methodology */}
+        {ret.sources && ret.sources.length > 0 && (
+          <div
+            data-testid="sources-section"
+            className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+          >
+            <div className="flex items-center gap-2">
+              <BookText className="h-5 w-5 text-teal-700" />
+              <h2 className="font-heading text-lg font-semibold text-navy-900">
+                Sources & methodology
+              </h2>
+            </div>
+            <p className="mt-2 text-sm text-slate-600">
+              Calculations are grounded in official IRS figures for tax year {ret.taxYear}.
+            </p>
+            <ul className="mt-3 space-y-1.5">
+              {ret.sources.map((s, i) => (
+                <li key={i} className="flex gap-2 text-sm text-slate-600">
+                  <span className="text-teal-700">•</span>
+                  {s}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <Disclaimer fixed />

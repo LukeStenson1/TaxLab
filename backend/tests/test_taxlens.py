@@ -161,6 +161,67 @@ class TestReturns:
         assert "rawFields" in body
         assert "pdf" not in body
         assert "raw_pdf" not in body
+        # --- New: 'sources' field present and references correct Rev. Proc. for tax year ---
+        assert "sources" in body and isinstance(body["sources"], list) and len(body["sources"]) >= 1
+        tax_year = int(body.get("taxYear") or 2024)
+        joined = " | ".join(body["sources"])
+        expected_revproc_map = {
+            2023: "Rev. Proc. 2022-38",
+            2024: "Rev. Proc. 2023-34",
+            2025: "Rev. Proc. 2024-40",
+        }
+        expected = expected_revproc_map.get(tax_year, "Rev. Proc.")
+        assert expected in joined, f"Expected '{expected}' for TY{tax_year} in sources: {joined}"
+        STATE["tax_year"] = tax_year
+        STATE["insights"] = body.get("insights", [])
+        STATE["raw_fields"] = body.get("rawFields", {})
+
+    def test_grounding_correctness(self):
+        """Insights for a TY2024 single filer with ~90k income should reflect 2024 IRS figures."""
+        insights = STATE.get("insights", [])
+        joined = " ".join(
+            [
+                str(i.get("title", "")) + " " + str(i.get("explanation", "")) + " " + str(i.get("action", ""))
+                for i in insights
+            ]
+        )
+        if STATE.get("tax_year") != 2024:
+            pytest.skip(f"Sample is TY{STATE.get('tax_year')}, grounding rule asserts 2024 figures")
+        # 401k 2024 limit = $23,000 ; IRA = $7,000 ; std deduction single = $14,600
+        # At least one of these must appear, and the incorrect prior-year values should NOT appear.
+        any_correct = any(s in joined for s in ["23,000", "$23,000", "7,000", "$7,000", "14,600", "$14,600"])
+        assert any_correct, f"No 2024 grounding figures referenced in insights. Got: {joined[:500]}"
+        # Confirm no 2023 figures slipped in
+        bad_vals = ["$22,500", "22,500", "$6,500", "6,500", "$13,850", "13,850"]
+        leaks = [b for b in bad_vals if b in joined]
+        assert not leaks, f"2023 figures leaked into TY2024 insights: {leaks}"
+
+    def test_pdf_download_success(self):
+        r = requests.get(
+            f"{API}/returns/{STATE['return_id']}/pdf",
+            headers={"Authorization": f"Bearer {STATE['token']}"},
+            timeout=60,
+        )
+        assert r.status_code == 200, r.text
+        assert r.headers.get("content-type", "").startswith("application/pdf")
+        cd = r.headers.get("content-disposition", "")
+        assert "attachment" in cd.lower()
+        assert ".pdf" in cd.lower()
+        # PDF starts with %PDF- magic bytes and is non-trivial
+        assert r.content[:5] == b"%PDF-", f"Not a valid PDF, header={r.content[:8]!r}"
+        assert len(r.content) > 1500, f"PDF too small ({len(r.content)} bytes)"
+
+    def test_pdf_download_unauthenticated(self):
+        r = requests.get(f"{API}/returns/{STATE['return_id']}/pdf", timeout=30)
+        assert r.status_code == 401, f"Expected 401, got {r.status_code}: {r.text[:200]}"
+
+    def test_pdf_download_cross_user(self):
+        r = requests.get(
+            f"{API}/returns/{STATE['return_id']}/pdf",
+            headers={"Authorization": f"Bearer {STATE['seed_token']}"},
+            timeout=30,
+        )
+        assert r.status_code == 404, f"Expected 404, got {r.status_code}: {r.text[:200]}"
 
     def test_cross_user_isolation(self):
         # Use seeded user token to try to access run user's return
