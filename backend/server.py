@@ -764,7 +764,12 @@ app.include_router(api)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL, "http://localhost:3000"],
+    allow_origins=[
+        FRONTEND_URL,
+        "http://localhost:3000",
+        "https://taxlab-ivory.vercel.app",
+        "https://taxlab-ocyey2pka-lukestenson1s-projects.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
