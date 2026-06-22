@@ -8,16 +8,18 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let mounted = true;
+    const finish = (val) => {
+      if (mounted) setUser(val);
+    };
     api
       .get("/auth/me")
-      .then(({ data }) => {
-        if (mounted) setUser(data.user);
-      })
-      .catch(() => {
-        if (mounted) setUser(false);
-      });
+      .then(({ data }) => finish(data.user))
+      .catch(() => finish(false));
+    // Safety: never leave the app stuck on the loading spinner.
+    const safety = setTimeout(() => finish(false), 12000);
     return () => {
       mounted = false;
+      clearTimeout(safety);
     };
   }, []);
 

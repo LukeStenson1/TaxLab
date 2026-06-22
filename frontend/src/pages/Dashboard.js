@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import api from "../lib/api";
 import Disclaimer from "../components/Disclaimer";
+import YearOverYear from "../components/YearOverYear";
 import { fmtUSD, fmtPct } from "../lib/taxCalc";
 
 export default function Dashboard() {
@@ -125,6 +126,9 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
+
+            {/* Year-over-year comparison */}
+            <YearOverYear returns={returns} />
 
             {/* Year cards */}
             <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">

@@ -281,6 +281,9 @@ Rules:
 - Only include insight modules that are RELEVANT given the numbers and the user's context.
 - Rank the insights array by dollarImpact DESCENDING.
 - Use ONLY the official IRS reference figures above for the return's tax year in every calculation.
+- If the return's tax year is NOT listed in the reference figures above, use the most recent listed year's
+  official IRS figures as the best available basis, and add a short note in the relevant insight's explanation
+  that the figure is an estimate pending the official IRS inflation-adjustment update for that year.
 - If a numeric field cannot be found, estimate reasonably or use 0; never use null for rawFields numbers.
 - Keep tone educational, not advisory. Output JSON only."""
 
