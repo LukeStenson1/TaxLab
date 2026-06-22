@@ -29,6 +29,13 @@ Gemini 2.5 Flash · own Gemini key · email/password auth only · real Stripe ·
 - Gemini analysis with 3x retry/backoff on transient 503/429
 - Disclaimer on all output pages
 
+## Iteration 2 (2026-06-22) — PDF export + IRS grounding
+- Download report as PDF: GET /api/returns/{id}/pdf (fpdf2) → branded report with stats, ranked insights, Ask-your-CPA, sources, disclaimer. "Download PDF" button on analysis page.
+- Authoritative IRS grounding: backend/tax_reference.py holds official IRS figures for TY 2023/2024/2025 (brackets, std deduction, 401k/IRA/SEP limits, LTCG breakpoints, QBI/NIIT/CTC/education thresholds) sourced from IRS Rev. Procs & pubs. Injected into every Gemini prompt; model forced to use exact figures + cite IRS sources.
+- "Sources & methodology" section added to analysis page; `sources` field added to return API + stored docs.
+- Annual maintenance = add one new year block to tax_reference.TAX_REFERENCE + bump CURRENT_TAX_YEAR.
+- Testing: backend 21/21 passed (incl. PDF auth/404/401, sources Rev.Proc. mapping, grounding correctness). Frontend code-verified + compiles; full browser E2E of analysis page constrained by preview latency (signup page rendered correctly; iteration-1 analysis flow passed).
+
 ## Testing
 - Backend: 17/17 pytest passed (auth, returns CRUD + isolation, analyze, billing)
 - Frontend: full E2E journeys passed (signup→upload→analyze→report, simulator live, dashboard, settings)
