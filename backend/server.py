@@ -6,7 +6,6 @@ import os
 import re
 import io
 import json
-import uuid
 import asyncio
 import tempfile
 import logging
@@ -15,6 +14,8 @@ from typing import Optional, List, Dict, Any
 
 import bcrypt
 import jwt
+import stripe
+import google.generativeai as genai
 from bson import ObjectId
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,13 +23,6 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
 from motor.motor_asyncio import AsyncIOMotorClient
 from fpdf import FPDF
-
-from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContentWithMimeType
-from emergentintegrations.payments.stripe.checkout import (
-    StripeCheckout,
-    CheckoutSessionRequest,
-    CheckoutStatusResponse,
-)
 
 import tax_reference
 
@@ -42,17 +36,26 @@ MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
 JWT_SECRET = os.environ["JWT_SECRET"]
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "sk_test_emergent")
+STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 JWT_ALGORITHM = "HS256"
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
-# Subscription plans (server-defined; never trust the client for amounts)
+# Configure Gemini
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
+# Configure Stripe
+if STRIPE_API_KEY:
+    stripe.api_key = STRIPE_API_KEY
+
+# Subscription plans
 PLANS = {
-    "pro": {"amount": 29.00, "name": "Pro", "label": "pro"},
-    "lifetime": {"amount": 199.00, "name": "Lifetime", "label": "lifetime"},
+    "pro": {"amount": 2900, "name": "Pro", "label": "pro"},           # cents
+    "lifetime": {"amount": 19900, "name": "Lifetime", "label": "lifetime"},
 }
 
 app = FastAPI(title="TaxLens API")
@@ -290,52 +293,78 @@ Rules:
 
 def _extract_json(text: str) -> dict:
     text = text.strip()
-    # strip markdown fences if present
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?", "", text).strip()
         text = re.sub(r"```$", "", text).strip()
-    # find first { and last }
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1:
-        text = text[start : end + 1]
+        text = text[start: end + 1]
     return json.loads(text)
 
 
 async def run_gemini_analysis(pdf_path: str, context: dict) -> dict:
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="Gemini API key is not configured.")
-    chat = LlmChat(
-        api_key=GEMINI_API_KEY,
-        session_id=f"taxlens-{uuid.uuid4()}",
-        system_message=ANALYSIS_SYSTEM_PROMPT,
-    ).with_model("gemini", "gemini-2.5-flash")
-    pdf_file = FileContentWithMimeType(file_path=pdf_path, mime_type="application/pdf")
-    user_msg = UserMessage(text=build_analysis_prompt(context), file_contents=[pdf_file])
 
-    result = None
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        system_instruction=ANALYSIS_SYSTEM_PROMPT,
+    )
+
+    # Upload PDF to Gemini Files API
+    uploaded_file = None
     last_err = None
+
     for attempt in range(3):
         try:
-            result = await chat.send_message(user_msg)
-            break
+            # Upload the file
+            uploaded_file = genai.upload_file(
+                path=pdf_path,
+                mime_type="application/pdf",
+            )
+
+            prompt = build_analysis_prompt(context)
+            response = await asyncio.to_thread(
+                model.generate_content,
+                [uploaded_file, prompt],
+                generation_config=genai.GenerationConfig(
+                    temperature=0.1,
+                    max_output_tokens=4096,
+                ),
+            )
+
+            text = response.text
+            result = _extract_json(text)
+
+            # Clean up uploaded file
+            try:
+                genai.delete_file(uploaded_file.name)
+            except Exception:
+                pass
+
+            return result
+
         except Exception as e:
             last_err = e
-            transient = any(k in str(e).lower() for k in ["503", "unavailable", "overloaded", "high demand", "429", "rate"])
+            transient = any(k in str(e).lower() for k in ["503", "unavailable", "overloaded", "429", "rate"])
             logger.warning("Gemini attempt %s failed: %s", attempt + 1, e)
+            if uploaded_file:
+                try:
+                    genai.delete_file(uploaded_file.name)
+                except Exception:
+                    pass
+                uploaded_file = None
             if transient and attempt < 2:
                 await asyncio.sleep(2 * (attempt + 1))
                 continue
             break
-    if result is None:
-        logger.exception("Gemini call failed", exc_info=last_err)
-        raise HTTPException(status_code=503, detail="The analyzer is temporarily busy. Please try again in a moment.")
-    text = result if isinstance(result, str) else str(result)
-    try:
-        return _extract_json(text)
-    except Exception:
-        logger.error("Failed to parse Gemini JSON: %s", text[:2000])
-        raise HTTPException(status_code=502, detail="The analyzer could not read this PDF. Please ensure it is a valid tax return.")
+
+    logger.exception("Gemini call failed", exc_info=last_err)
+    raise HTTPException(
+        status_code=503,
+        detail="The analyzer is temporarily busy. Please try again in a moment."
+    )
 
 
 @api.post("/returns/analyze")
@@ -354,6 +383,7 @@ async def analyze_return(
         life_changes = json.loads(lifeChanges)
     except Exception:
         life_changes = []
+
     context = {
         "filingStatus": filingStatus,
         "dependents": dependents,
@@ -370,7 +400,6 @@ async def analyze_return(
             tmp_path = tmp.name
         analysis = await run_gemini_analysis(tmp_path, context)
     finally:
-        # NEVER store the raw PDF
         if tmp_path and os.path.exists(tmp_path):
             os.remove(tmp_path)
 
@@ -443,7 +472,6 @@ LIGHT = (241, 245, 249)
 
 
 def _clean(text) -> str:
-    """Make text safe for fpdf2's latin-1 core fonts."""
     if text is None:
         return ""
     s = str(text)
@@ -481,7 +509,6 @@ def build_report_pdf(ret: dict) -> bytes:
     pdf.add_page()
     W = pdf.w - 2 * pdf.l_margin
 
-    # Header band
     pdf.set_fill_color(*NAVY)
     pdf.rect(0, 0, pdf.w, 34, "F")
     pdf.set_xy(pdf.l_margin, 10)
@@ -496,7 +523,6 @@ def build_report_pdf(ret: dict) -> bytes:
     pdf.set_y(42)
     pdf.set_text_color(*NAVY)
 
-    # Summary stats
     pdf.set_font("Helvetica", "B", 13)
     pdf.cell(0, 8, "Summary", ln=1)
     pdf.ln(1)
@@ -519,7 +545,6 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.cell(col_w, 8, _clean(value), border=0, align="L")
     pdf.ln(12)
 
-    # Insights
     pdf.set_font("Helvetica", "B", 13)
     pdf.set_text_color(*NAVY)
     pdf.cell(0, 8, _clean(f"Your Insights ({len(insights)}) - ranked by estimated dollar impact"), ln=1)
@@ -527,13 +552,11 @@ def build_report_pdf(ret: dict) -> bytes:
 
     for idx, ins in enumerate(insights):
         impact = ins.get("dollarImpact", 0) or 0
-        # Title row
         pdf.set_draw_color(*LIGHT)
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(*NAVY)
         pdf.multi_cell(W * 0.72, 6, _clean(f"{idx + 1}. {ins.get('title', 'Insight')}"))
         title_y = pdf.get_y()
-        # Impact (right aligned, on the first line of the title block)
         pdf.set_xy(pdf.l_margin + W * 0.72, title_y - 6)
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(*GREEN)
@@ -545,7 +568,6 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.set_text_color(60, 70, 85)
         pdf.multi_cell(W, 5, _clean(ins.get("explanation", "")))
         pdf.ln(1)
-        # Ask your CPA box
         pdf.set_fill_color(*LIGHT)
         pdf.set_font("Helvetica", "B", 8)
         pdf.set_text_color(*SLATE)
@@ -555,7 +577,6 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.multi_cell(W, 5, _clean(ins.get("askYourCPA", "")), fill=True)
         pdf.ln(5)
 
-    # Sources
     if sources:
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(*NAVY)
@@ -566,7 +587,6 @@ def build_report_pdf(ret: dict) -> bytes:
             pdf.multi_cell(W, 4.5, _clean(f"- {s}"))
         pdf.ln(2)
 
-    # Disclaimer
     pdf.set_draw_color(*SLATE)
     pdf.set_font("Helvetica", "I", 8)
     pdf.set_text_color(*SLATE)
@@ -604,86 +624,87 @@ async def download_return_pdf(return_id: str, user: dict = Depends(get_current_u
 # ---------------------------------------------------------------------------
 @api.get("/billing/plans")
 async def billing_plans():
-    return {"plans": [{"id": k, "name": v["name"], "amount": v["amount"]} for k, v in PLANS.items()]}
+    return {"plans": [{"id": k, "name": v["name"], "amount": v["amount"] / 100} for k, v in PLANS.items()]}
 
 
 @api.post("/billing/checkout")
-async def create_checkout(body: CheckoutRequest, request: Request, user: dict = Depends(get_current_user)):
+async def create_checkout(body: CheckoutRequest, user: dict = Depends(get_current_user)):
     if body.planId not in PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan")
-    plan = PLANS[body.planId]
-    host_url = str(request.base_url)
-    webhook_url = f"{host_url}api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    if not STRIPE_API_KEY:
+        raise HTTPException(status_code=500, detail="Stripe is not configured.")
 
+    plan = PLANS[body.planId]
     origin = body.originUrl.rstrip("/")
     success_url = f"{origin}/billing/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}/settings"
-    metadata = {
-        "user_id": str(user["_id"]),
-        "email": user["email"],
-        "plan_id": body.planId,
-    }
-    checkout_request = CheckoutSessionRequest(
-        amount=float(plan["amount"]),
-        currency="usd",
-        success_url=success_url,
-        cancel_url=cancel_url,
-        metadata=metadata,
-    )
-    session = await stripe_checkout.create_checkout_session(checkout_request)
+
+    try:
+        session = await asyncio.to_thread(
+            stripe.checkout.Session.create,
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": f"TaxLens {plan['name']}"},
+                    "unit_amount": plan["amount"],
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={
+                "user_id": str(user["_id"]),
+                "email": user["email"],
+                "plan_id": body.planId,
+            },
+        )
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     await db.payment_transactions.insert_one({
-        "session_id": session.session_id,
+        "session_id": session.id,
         "user_id": str(user["_id"]),
         "email": user["email"],
         "plan_id": body.planId,
-        "amount": float(plan["amount"]),
+        "amount": plan["amount"] / 100,
         "currency": "usd",
-        "metadata": metadata,
         "payment_status": "initiated",
         "status": "initiated",
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
-    return {"url": session.url, "sessionId": session.session_id}
-
-
-async def _apply_successful_payment(txn: dict):
-    """Idempotently upgrade the user once a payment is confirmed."""
-    if txn.get("payment_status") == "paid":
-        return
-    plan_id = txn.get("plan_id")
-    plan = PLANS.get(plan_id, {})
-    await db.users.update_one(
-        {"_id": ObjectId(txn["user_id"])},
-        {"$set": {"billing_status": plan.get("label", "pro"), "plan": plan_id}},
-    )
+    return {"url": session.url, "sessionId": session.id}
 
 
 @api.get("/billing/status/{session_id}")
-async def checkout_status(session_id: str, request: Request):
+async def checkout_status(session_id: str):
     txn = await db.payment_transactions.find_one({"session_id": session_id})
     if not txn:
         raise HTTPException(status_code=404, detail="Session not found")
-    host_url = str(request.base_url)
-    webhook_url = f"{host_url}api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
-    status: CheckoutStatusResponse = await stripe_checkout.get_checkout_status(session_id)
 
-    if status.payment_status == "paid" and txn.get("payment_status") != "paid":
-        await _apply_successful_payment(txn)
+    try:
+        session = await asyncio.to_thread(stripe.checkout.Session.retrieve, session_id)
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    payment_status = session.get("payment_status", "unpaid")
+
+    if payment_status == "paid" and txn.get("payment_status") != "paid":
+        plan_id = txn.get("plan_id")
+        plan = PLANS.get(plan_id, {})
+        await db.users.update_one(
+            {"_id": ObjectId(txn["user_id"])},
+            {"$set": {"billing_status": plan.get("label", "pro"), "plan": plan_id}},
+        )
         await db.payment_transactions.update_one(
             {"session_id": session_id},
-            {"$set": {"payment_status": "paid", "status": status.status}},
+            {"$set": {"payment_status": "paid", "status": session.get("status")}},
         )
-    elif txn.get("payment_status") != "paid":
-        await db.payment_transactions.update_one(
-            {"session_id": session_id},
-            {"$set": {"status": status.status, "payment_status": status.payment_status}},
-        )
+
     return {
-        "status": status.status,
-        "paymentStatus": status.payment_status,
+        "status": session.get("status"),
+        "paymentStatus": payment_status,
         "planId": txn.get("plan_id"),
     }
 
@@ -692,21 +713,34 @@ async def checkout_status(session_id: str, request: Request):
 async def stripe_webhook(request: Request):
     body = await request.body()
     sig = request.headers.get("Stripe-Signature")
-    webhook_url = f"{str(request.base_url)}api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
-    try:
-        event = await stripe_checkout.handle_webhook(body, sig)
-    except Exception as e:
-        logger.error("Webhook error: %s", e)
-        raise HTTPException(status_code=400, detail="Invalid webhook")
-    if event.payment_status == "paid":
-        txn = await db.payment_transactions.find_one({"session_id": event.session_id})
-        if txn and txn.get("payment_status") != "paid":
-            await _apply_successful_payment(txn)
-            await db.payment_transactions.update_one(
-                {"session_id": event.session_id},
-                {"$set": {"payment_status": "paid", "status": "complete"}},
-            )
+
+    if STRIPE_WEBHOOK_SECRET:
+        try:
+            event = stripe.Webhook.construct_event(body, sig, STRIPE_WEBHOOK_SECRET)
+        except Exception as e:
+            logger.error("Webhook error: %s", e)
+            raise HTTPException(status_code=400, detail="Invalid webhook")
+    else:
+        try:
+            event = json.loads(body)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid payload")
+
+    if event.get("type") == "checkout.session.completed":
+        session = event["data"]["object"]
+        if session.get("payment_status") == "paid":
+            txn = await db.payment_transactions.find_one({"session_id": session["id"]})
+            if txn and txn.get("payment_status") != "paid":
+                plan_id = txn.get("plan_id")
+                plan = PLANS.get(plan_id, {})
+                await db.users.update_one(
+                    {"_id": ObjectId(txn["user_id"])},
+                    {"$set": {"billing_status": plan.get("label", "pro"), "plan": plan_id}},
+                )
+                await db.payment_transactions.update_one(
+                    {"session_id": session["id"]},
+                    {"$set": {"payment_status": "paid", "status": "complete"}},
+                )
     return {"ok": True}
 
 
