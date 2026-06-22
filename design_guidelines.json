@@ -1,0 +1,112 @@
+{
+  "theme": "light",
+  "archetype": "4 (Swiss & High-Contrast) - Modified for Fintech Trust",
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "DM Sans",
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight font-bold",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-semibold",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm",
+      "overline": "text-xs uppercase tracking-[0.2em] font-bold text-slate-500"
+    }
+  },
+  "colors": {
+    "primary": "#0F172A",
+    "primary_hover": "#1E293B",
+    "accent_teal": "#0F766E",
+    "accent_teal_hover": "#0D9488",
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "surface_secondary": "#F1F5F9",
+    "text_main": "#0F172A",
+    "text_muted": "#64748B",
+    "border": "#E2E8F0",
+    "success": "#059669",
+    "warning": "#D97706",
+    "danger": "#DC2626",
+    "chart_palette": ["#0F766E", "#0EA5E9", "#6366F1", "#8B5CF6", "#10B981"]
+  },
+  "spacing_and_layout": {
+    "container_padding": "p-6 sm:p-8 md:p-12",
+    "card_padding": "p-6 md:p-8",
+    "gap_standard": "gap-6",
+    "gap_large": "gap-12",
+    "grid_desktop": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
+    "nav_desktop": "fixed left-0 top-0 h-full w-64 border-r border-slate-200 bg-white",
+    "nav_mobile": "fixed bottom-0 left-0 w-full h-16 border-t border-slate-200 bg-white z-50",
+    "main_content_desktop": "md:ml-64 min-h-screen bg-slate-50"
+  },
+  "surfaces_and_shadows": {
+    "card": "bg-white rounded-xl shadow-sm border border-slate-200",
+    "card_hover": "hover:-translate-y-1 hover:shadow-md transition-all duration-200",
+    "header": "bg-white/80 backdrop-blur-xl border-b border-slate-200",
+    "input": "bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+  },
+  "components": {
+    "button_primary": "bg-slate-900 text-white rounded-lg px-6 py-2.5 font-medium hover:bg-slate-800 transition-colors inline-flex items-center justify-center",
+    "button_accent": "bg-teal-700 text-white rounded-lg px-6 py-2.5 font-medium hover:bg-teal-600 transition-colors inline-flex items-center justify-center",
+    "button_outline": "border border-slate-300 text-slate-900 bg-white rounded-lg px-6 py-2.5 font-medium hover:bg-slate-50 transition-colors inline-flex items-center justify-center",
+    "badge_success": "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200",
+    "badge_neutral": "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700",
+    "insight_card": "bg-white rounded-xl p-6 shadow-sm border border-slate-200 flex flex-col gap-4 relative overflow-hidden",
+    "slider": "relative flex w-full touch-none select-none items-center (customize Shadcn slider with teal-600 active track)"
+  },
+  "pages": {
+    "landing": {
+      "layout": "Marketing grid. Top navigation bar. Generous spacing (py-24).",
+      "hero": "Left-aligned text (H1: 'Your tax return contains insights your CPA never told you.'), clear CTA, abstract navy graphic or UI mockup on the right.",
+      "how_it_works": "3-column bento-style cards with Lucide icons (Upload, Analyze, Act).",
+      "pricing": "2-column clean pricing cards with 'Most Popular' badge."
+    },
+    "auth": {
+      "layout": "Split screen or centered clean card. Deep navy brand color prominent."
+    },
+    "upload": {
+      "layout": "Centered narrow container (max-w-2xl) with stepped or scrollable form.",
+      "dropzone": "Dashed border-2 border-slate-300, large padding (p-12), bg-slate-50, hover:bg-slate-100 transition-colors rounded-xl flex flex-col items-center justify-center text-center.",
+      "form": "Clean vertical form using Shadcn inputs, selects, and toggles for the 5-question intake."
+    },
+    "analysis_report": {
+      "layout": "Control Room Grid. Dashboard layout (Sidebar + Main content).",
+      "header": "Sticky header with page title and 'Download PDF' / 'Share' buttons.",
+      "insight_cards": "Ranked list of cards. Each card must have: Title, Plain English explanation (2-3 sentences), Dollar Impact Badge (prominent, e.g., '+$1,200'), and a gray footer block titled 'Ask your CPA:'.",
+      "simulator": "Dedicated section/card with multiple Shadcn Sliders (401k, IRA, Charity) that visually update a large 'Estimated Tax Savings' hero metric.",
+      "disclaimer": "Fixed or sticky footer banner: 'This is for educational purposes only and does not constitute tax or financial advice.'"
+    },
+    "dashboard": {
+      "layout": "Grid for summary stats (AGI, Effective Rate, Total Paid).",
+      "charts": "Recharts AreaChart for YoY effective rate trend. Teal primary color.",
+      "history": "Shadcn Table listing past uploaded returns with 'View Report' actions."
+    }
+  },
+  "motion_and_interactions": {
+    "hover_states": "All interactive elements must have clear hover states (color shift, subtle lift).",
+    "transitions": "Use 'transition-all duration-200 ease-in-out' on buttons and cards.",
+    "page_load": "Subtle fade-in for main content areas."
+  },
+  "icons_and_assets": {
+    "library": "lucide-react",
+    "images": {
+      "hero_abstract_bg": "https://images.unsplash.com/photo-1644088379091-d574269d422f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMG5hdnklMjBibHVlJTIwZmluYW5jZSUyMGdyYXBofGVufDB8fHx8MTc4MjE0MjgyNnww&ixlib=rb-4.1.0&q=85",
+      "stock_chart_bg": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMG5hdnklMjBibHVlJTIwZmluYW5jZSUyMGdyYXBofGVufDB8fHx8MTc4MjE0MjgyNnww&ixlib=rb-4.1.0&q=85",
+      "desk_tax_forms": "https://images.pexels.com/photos/6928994/pexels-photo-6928994.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    }
+  },
+  "accessibility_and_testing": {
+    "contrast": "Ensure minimum 4.5:1 contrast for all text. No light gray text on white backgrounds.",
+    "data_testid": "MANDATORY: Add `data-testid` attributes to all actionable elements (buttons, links, form inputs) and critical data outputs (insight impact values, summary stats)."
+  },
+  "instructions_to_main_agent": [
+    "Install and import Google Fonts 'Outfit' and 'DM Sans' in the main HTML/CSS.",
+    "Configure tailwind.config.js to use these fonts for sans/heading.",
+    "Build a robust Dashboard layout wrapper that includes the Desktop Sidebar (left) and Mobile Bottom Nav.",
+    "For the UI, strictly use raw HTML/Tailwind for structural layouts and Shadcn components for complex interactions (Sliders, Selects, Dialogs, Tables).",
+    "DO NOT use placeholder image URLs like via.placeholder.com. Use the provided Unsplash/Pexels URLs or SVG icons.",
+    "Make the Simulator section fully reactive (React state) so sliders instantly update the savings number.",
+    "Ensure 'Ask your CPA' sections are visually distinct within the insight cards (e.g., in a subtle bg-slate-50 rounded-b-xl footer)."
+  ]
+}
