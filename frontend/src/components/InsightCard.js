@@ -1,5 +1,6 @@
 import React from "react";
-import { TrendingUp, HelpCircle } from "lucide-react";
+import { Link } from "react-router-dom";
+import { TrendingUp, HelpCircle, Lock } from "lucide-react";
 import { fmtUSD } from "../lib/taxCalc";
 import InfoTooltip from "./InfoTooltip";
 import GLOSSARY from "../lib/glossary";
@@ -32,7 +33,7 @@ const SEVERITY_STYLES = {
   low: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
-export default function InsightCard({ insight, rank }) {
+export default function InsightCard({ insight, rank, locked = false }) {
   const impact = Number(insight.dollarImpact) || 0;
   const severity = insight.severity || "medium";
 
@@ -66,40 +67,66 @@ export default function InsightCard({ insight, rank }) {
           <h3 className="font-heading text-lg font-semibold leading-snug text-navy-900">
             {insight.title}
           </h3>
-          {rank === 0 && (
+          {rank === 0 && !locked && (
             <span className="shrink-0 rounded-full bg-navy-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
               Top
             </span>
           )}
         </div>
 
-        <p className="text-sm leading-relaxed text-slate-600">{insight.explanation}</p>
+        {locked ? (
+          <div data-testid={`insight-locked-${insight.module}`} className="relative mt-1 flex-1">
+            <p className="select-none text-sm leading-relaxed text-slate-600 blur-sm">
+              {insight.explanation || "This insight includes a detailed, tailored explanation and the exact question to bring to your CPA."}
+            </p>
+            <div className="mt-3 flex items-center gap-2 blur-sm">
+              <TrendingUp className="h-5 w-5 text-emerald-600" />
+              <span className="font-heading text-2xl font-bold text-emerald-600">+$•••</span>
+            </div>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-white/40">
+              <Lock className="h-5 w-5 text-navy-900" />
+              <Link
+                to="/app/settings"
+                data-testid={`insight-unlock-${insight.module}`}
+                className="rounded-lg bg-navy-900 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-navy-800"
+              >
+                Unlock full report
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm leading-relaxed text-slate-600">{insight.explanation}</p>
 
-        <div className="mt-auto flex items-center gap-2 pt-2">
-          <TrendingUp className="h-5 w-5 text-emerald-600" />
-          <span
-            data-testid={`insight-impact-${insight.module}`}
-            className="font-heading text-2xl font-bold text-emerald-600"
-          >
-            {impact >= 0 ? "+" : "-"}
-            {fmtUSD(Math.abs(impact))}
-          </span>
-          <span className="text-xs text-slate-400">estimated impact</span>
-          <InfoTooltip label="estimated impact" testid={`info-impact-${insight.module}`} text={GLOSSARY.dollarImpact} />
-        </div>
+            <div className="mt-auto flex items-center gap-2 pt-2">
+              <TrendingUp className="h-5 w-5 text-emerald-600" />
+              <span
+                data-testid={`insight-impact-${insight.module}`}
+                className="font-heading text-2xl font-bold text-emerald-600"
+              >
+                {impact >= 0 ? "+" : "-"}
+                {fmtUSD(Math.abs(impact))}
+              </span>
+              <span className="text-xs text-slate-400">estimated impact</span>
+              <InfoTooltip label="estimated impact" testid={`info-impact-${insight.module}`} text={GLOSSARY.dollarImpact} />
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="border-t border-slate-100 bg-slate-50 px-6 py-4">
-        <div className="flex gap-2">
-          <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Ask your CPA
-            </p>
-            <p className="mt-1 text-sm text-slate-700">{insight.askYourCPA}</p>
+      {!locked && (
+        <div className="border-t border-slate-100 bg-slate-50 px-6 py-4">
+          <div className="flex gap-2">
+            <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Ask your CPA
+              </p>
+              <p className="mt-1 text-sm text-slate-700">{insight.askYourCPA}</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

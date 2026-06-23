@@ -1,0 +1,52 @@
+{
+  "summary": "Frontend testing of TaxLens new features. Learn page and Mid-year Check-in (no PDF) verified end-to-end and PASS all assertions. Free-user gating on an analyzed return could NOT be E2E-verified because the Gemini API key in /app/backend/.env is invalid — POST /api/returns/analyze returns 503 with the upstream error 'ACCESS_TOKEN_TYPE_UNSUPPORTED' (HTTP 401 from generativelanguage.googleapis.com). Per the request, we did not repeatedly retry uploads. Gating logic itself was code-reviewed and matches the spec.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/returns/analyze",
+        "issue": "Returns 503 Service Unavailable. Backend logs show Gemini call fails 3x with HTTP 401 UNAUTHENTICATED (ACCESS_TOKEN_TYPE_UNSUPPORTED) from generativelanguage.googleapis.com — the GEMINI_API_KEY currently in /app/backend/.env is rejected by Google. No fresh user can complete an analysis upload, which means the free-user gating UI on the Analysis report page cannot be E2E-verified in this environment.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Upload → Gemini analysis → Analysis report",
+        "issue": "Front-end submits correctly (intake form, state=CA, single, PDF attached, analyze-button clicked), but the API returns 503 due to the invalid Gemini key, so the user is bounced back to /app/upload and never sees the Analysis report. UI has no visible toast/error in this run — likely silent fail.",
+        "affected_selectors": ["[data-testid=analyze-button]", "[data-testid=combined-tax-section]", "[data-testid^=insight-locked-]", "[data-testid=scenario-simulator]"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "/app/checkin",
+        "issues": [
+          "Header label reads 'Projected 2026 tax (federal + state)' because it uses new Date().getFullYear(), but the underlying brackets and standard deduction in /app/frontend/src/lib/taxCalc.js are explicitly 2025 (OBBBA $15,750 single). Either pin the label to 2025 or update the brackets/deduction constants. Same drift will appear inline ('Simplified estimate using 2025 federal brackets and the 2026 standard deduction. Not tax advice.')."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "URGENT: Replace GEMINI_API_KEY in /app/backend/.env with a valid key (current key returns 401 ACCESS_TOKEN_TYPE_UNSUPPORTED). Without this the entire analyze-upload flow and the Analysis report (including the free-user gating UI) cannot be tested or used.",
+    "Add visible UI feedback (toast / inline error) on the Upload page when /api/returns/analyze returns a non-2xx response, so users aren't silently returned to /app/upload.",
+    "Decouple the Check-in 'Projected YEAR tax' header from new Date().getFullYear() — either render the year that matches the bracket data (2025) or update brackets/std deduction to the current calendar year."
+  ],
+  "critical_code_review_comments": [
+    "Analysis.js (line 41): isPaid = !!(user?.billingStatus && user.billingStatus !== 'free') — correct. handleDownload (l.55-59) correctly navigates free users to /app/settings instead of fetching the PDF blob. Button label flips to 'Download PDF (Pro)' (l.140). FREE_INSIGHTS=2 is enforced both via the locked prop on InsightCard (l.275: locked={!isPaid && i >= FREE_INSIGHTS}) and via two upgrade CTAs (unlock-report-cta around l.250 and an in-list 'You're seeing 2 of N' banner l.258). Matches spec.",
+    "ScenarioSimulator.js: FREE_SLIDERS=2; SLIDERS array order is contrib401k, contribIRA (free), then charitable, homeOffice, additionalIncome, capitalGains, qualifiedDividends, bondInterest, taxLossHarvest, rentalIncome, sideHustleIncome (all locked for free). Locked rows render data-testid=`sim-${key}-locked` (l.34). Upgrade banner data-testid='sim-upgrade-banner' is present (l.119). Matches spec.",
+    "taxCalc.projectTax: math verified by E2E — single, $80k, no deductions → taxable $64,250 (= 80000 − 15750), federal tax $9,049, marginal 22%. All correct per 2025 brackets.",
+    "Auth: seeded test@taxlens.com no longer exists in this preview DB — login fails 'Invalid email or password'. Re-registered it fresh for this run (free plan). The seed data noted by iteration_3 (TY2023/TY2024) is NOT auto-recreated. If main agent wants reproducible seed for testing, add a deterministic seed script.",
+    "Frontend logs many '401 Unauthorized' on /api/auth/me before login — that is by design (anonymous), but the noisy console error spam is slightly off-putting. Consider treating an unauthenticated /me as a quiet null rather than throwing."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only request; but /returns/analyze is BROKEN due to bad GEMINI_API_KEY)", "frontend": "100% on testable surfaces (Learn, Check-in, gating code review). 0% E2E coverage on Analysis-page gating because Gemini is down."},
+  "test_credentials": "Created freeuser_<ts>@test.com / TestPass123! via /signup (free plan). Also re-registered test@taxlens.com / test123 (the previously documented credential was missing from this DB).",
+  "seed_data_creation": "None successful — Gemini 503 blocked creating an analyzed return.",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "PASSING: (1) Landing /[data-testid=nav-learn-link] → /learn; learn-article (h2 'What does my tax bracket actually mean?'), glossary-niit / -amt / -qbi all render. (2) Signup auto-logs in and lands on /app/upload; [data-testid=nav-checkin] in sidebar routes to /app/checkin. (3) Check-in defaults single + $80k → checkin-combined=$9,049, checkin-taxable=$64,250, marginal 22%. Live updates verified: income $150k → $25,067 / $134,250; income $80k + 401k $10,000 → $6,849. checkin-tips renders actionable suggestions. info-checkin-rate tooltip reveals 'Your average rate when you add federal AND state tax together…'. BLOCKED: free-user gating on the Analysis report could not be E2E-tested because POST /api/returns/analyze returns 503 (Gemini key 401). To retest: (a) fix GEMINI_API_KEY in /app/backend/.env, (b) sign up a fresh user, (c) POST PDF /tmp/test1040.pdf with state=CA, filing=single, wait ~90s, (d) visit /app/analysis/<id> and assert: combined-tax-section, insight-card-* count vs insight-locked-* count (first 2 unlocked), unlock-report-cta link, sim-upgrade-banner, sim-<key>-locked for 9 sliders, download-pdf-button text='Download PDF (Pro)' → click should navigate to /app/settings, info-stat-effective tooltip.",
+  "rca of the issue": "Root cause of 503 on /api/returns/analyze: /app/backend/.env GEMINI_API_KEY is invalid. Backend log shows three retries of POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent each returning HTTP 401 UNAUTHENTICATED with reason ACCESS_TOKEN_TYPE_UNSUPPORTED, then the endpoint returns 503 to the client. Reproduction: any authenticated POST /api/returns/analyze with the supplied IRS 1040 sample PDF and valid intake fields. Mitigation: provision a working Google AI Studio API key in /app/backend/.env (GEMINI_API_KEY=…) and reload supervisor backend."
+}

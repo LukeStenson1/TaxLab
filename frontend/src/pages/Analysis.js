@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, FileWarning, Download, BookText } from "lucide-react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Loader2, FileWarning, Download, BookText, Lock } from "lucide-react";
 import api from "../lib/api";
 import InsightCard from "../components/InsightCard";
 import ScenarioSimulator from "../components/ScenarioSimulator";
 import Disclaimer from "../components/Disclaimer";
 import InfoTooltip from "../components/InfoTooltip";
 import GLOSSARY from "../lib/glossary";
+import { useAuth } from "../context/AuthContext";
 import { fmtUSD, fmtPct } from "../lib/taxCalc";
 import { estStateTax, stateName, hasIncomeTax } from "../lib/stateTax";
+
+const FREE_INSIGHTS = 2;
 
 function StatTile({ label, value, testid, info }) {
   return (
@@ -33,6 +36,9 @@ function StatTile({ label, value, testid, info }) {
 
 export default function Analysis() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const isPaid = !!(user?.billingStatus && user.billingStatus !== "free");
   const [ret, setRet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -47,6 +53,10 @@ export default function Analysis() {
   }, [id]);
 
   const handleDownload = async () => {
+    if (!isPaid) {
+      navigate("/app/settings");
+      return;
+    }
     setDownloading(true);
     try {
       const res = await api.get(`/returns/${id}/pdf`, { responseType: "blob" });
@@ -120,8 +130,14 @@ export default function Analysis() {
             data-testid="download-pdf-button"
             className="inline-flex items-center gap-2 rounded-lg bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800 disabled:opacity-60"
           >
-            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Download PDF
+            {downloading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : isPaid ? (
+              <Download className="h-4 w-4" />
+            ) : (
+              <Lock className="h-4 w-4" />
+            )}
+            {isPaid ? "Download PDF" : "Download PDF (Pro)"}
           </button>
         </div>
       </div>
@@ -226,7 +242,25 @@ export default function Analysis() {
         </div>
 
         {/* Insights */}
-        <h2 className="font-heading mt-10 text-2xl font-semibold text-navy-900">Your insights</h2>
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-heading text-2xl font-semibold text-navy-900">Your insights</h2>
+          {!isPaid && insights.length > FREE_INSIGHTS && (
+            <Link
+              to="/app/settings"
+              data-testid="unlock-report-cta"
+              className="inline-flex items-center gap-2 rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-navy-800"
+            >
+              <Lock className="h-4 w-4" />
+              Unlock full report
+            </Link>
+          )}
+        </div>
+        {!isPaid && insights.length > FREE_INSIGHTS && (
+          <p className="mt-1 text-sm text-slate-600">
+            You're seeing {FREE_INSIGHTS} of {insights.length} insights in full. Upgrade to Pro to
+            reveal the rest and download your report.
+          </p>
+        )}
         {insights.length === 0 ? (
           <p className="mt-4 text-slate-600">
             No specific insights were generated for this return.
@@ -234,7 +268,12 @@ export default function Analysis() {
         ) : (
           <div data-testid="insights-grid" className="mt-5 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {insights.map((ins, i) => (
-              <InsightCard key={`${ins.module}-${i}`} insight={ins} rank={i} />
+              <InsightCard
+                key={`${ins.module}-${i}`}
+                insight={ins}
+                rank={i}
+                locked={!isPaid && i >= FREE_INSIGHTS}
+              />
             ))}
           </div>
         )}

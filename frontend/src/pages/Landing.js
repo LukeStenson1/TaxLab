@@ -103,6 +103,7 @@ export default function Landing() {
             <a href="#how" className="text-sm font-medium text-slate-600 hover:text-navy-900">How it works</a>
             <a href="#insights" className="text-sm font-medium text-slate-600 hover:text-navy-900">Insights</a>
             <a href="#pricing" className="text-sm font-medium text-slate-600 hover:text-navy-900">Pricing</a>
+            <Link to="/learn" data-testid="nav-learn-link" className="text-sm font-medium text-slate-600 hover:text-navy-900">Learn</Link>
           </nav>
           <div className="flex items-center gap-3">
             <Link to="/login" data-testid="nav-login-link" className="text-sm font-medium text-slate-600 hover:text-navy-900">

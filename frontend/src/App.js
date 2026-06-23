@@ -10,6 +10,8 @@ import Analysis from "./pages/Analysis";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import BillingSuccess from "./pages/BillingSuccess";
+import CheckIn from "./pages/CheckIn";
+import Learn from "./pages/Learn";
 
 function Loading() {
   return (
@@ -39,10 +41,12 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/learn" element={<Learn />} />
           <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
           <Route path="/signup" element={<PublicOnly><Signup /></PublicOnly>} />
           <Route path="/app/dashboard" element={<Protected><Dashboard /></Protected>} />
           <Route path="/app/upload" element={<Protected><Upload /></Protected>} />
+          <Route path="/app/checkin" element={<Protected><CheckIn /></Protected>} />
           <Route path="/app/analysis/:id" element={<Protected><Analysis /></Protected>} />
           <Route path="/app/settings" element={<Protected><Settings /></Protected>} />
           <Route path="/billing/success" element={<Protected><BillingSuccess /></Protected>} />

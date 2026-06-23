@@ -66,6 +66,24 @@ export default function YearOverYear({ returns }) {
   const effDiff = effLatest - effPrior;
   const oppLatest = totalOpportunity(latest);
 
+  const agiLatest = Number(latest.rawFields?.agi) || 0;
+  const agiPrior = Number(prior.rawFields?.agi) || 0;
+  const agiUp = agiLatest > agiPrior;
+  const agiDiff = Math.abs(agiLatest - agiPrior);
+
+  let whyText;
+  if (effDiff > 0.1) {
+    whyText = agiUp
+      ? `Your effective rate rose ${effDiff.toFixed(1)} pts. Your income grew about ${fmtUSD(agiDiff)} versus ${prior.taxYear}, pushing more of it into higher brackets faster than your deductions grew.`
+      : `Your effective rate rose ${effDiff.toFixed(1)} pts even though income held steady — usually a sign of fewer deductions or credits than ${prior.taxYear}.`;
+  } else if (effDiff < -0.1) {
+    whyText = agiUp
+      ? `Nice — your effective rate fell ${Math.abs(effDiff).toFixed(1)} pts even as income rose. Deductions or credits did more work this year.`
+      : `Your effective rate fell ${Math.abs(effDiff).toFixed(1)} pts versus ${prior.taxYear}, helped by lower income and/or larger deductions.`;
+  } else {
+    whyText = `Your effective rate held roughly steady versus ${prior.taxYear} (within ${Math.abs(effDiff).toFixed(1)} pts).`;
+  }
+
   // Insight module shifts (new opportunities this year vs last)
   const priorModules = new Set((prior.insights || []).map((i) => i.module));
   const newModules = (latest.insights || []).filter((i) => !priorModules.has(i.module));
@@ -118,6 +136,15 @@ export default function YearOverYear({ returns }) {
             <p className="mt-2 text-sm text-slate-500">No new insight categories vs {prior.taxYear}.</p>
           )}
         </div>
+      </div>
+
+      {/* Here's why narrative */}
+      <div data-testid="yoy-why" className="flex items-start gap-3 border-t border-slate-100 bg-teal-50/60 px-6 py-4">
+        <TrendingDown className={`mt-0.5 h-5 w-5 shrink-0 ${effDiff <= 0 ? "text-emerald-600" : "text-amber-600 rotate-180"}`} />
+        <p className="text-sm leading-relaxed text-slate-700">
+          <span className="font-semibold text-navy-900">Here's why: </span>
+          {whyText}
+        </p>
       </div>
 
       {/* Comparison table */}

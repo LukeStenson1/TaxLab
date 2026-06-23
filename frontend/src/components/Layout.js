@@ -1,11 +1,12 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, UploadCloud, Settings, LogOut, ScanLine } from "lucide-react";
+import { LayoutDashboard, UploadCloud, Settings, LogOut, ScanLine, CalendarClock } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const navItems = [
   { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
   { to: "/app/upload", label: "Upload", icon: UploadCloud, testid: "nav-upload" },
+  { to: "/app/checkin", label: "Check-in", icon: CalendarClock, testid: "nav-checkin" },
   { to: "/app/settings", label: "Settings", icon: Settings, testid: "nav-settings" },
 ];
 

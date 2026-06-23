@@ -1,88 +1,107 @@
 import React, { useMemo, useState } from "react";
-import { Sliders, PiggyBank, TrendingUp } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Sliders, PiggyBank, TrendingUp, Briefcase, Lock } from "lucide-react";
 import { simulate, fmtUSD, fmtPct } from "../lib/taxCalc";
 import InfoTooltip from "./InfoTooltip";
 import GLOSSARY from "../lib/glossary";
+import { useAuth } from "../context/AuthContext";
 
-function SliderRow({ label, value, onChange, max, step, testid, hint, info }) {
+// Ordered list — the first FREE_SLIDERS are available to free users.
+const SLIDERS = [
+  { key: "contrib401k", label: "401(k) contribution", max: 23500, step: 500, group: "Contributions & deductions", info: GLOSSARY.contribution401k },
+  { key: "contribIRA", label: "IRA contribution", max: 7000, step: 250, group: "Contributions & deductions", info: GLOSSARY.ira },
+  { key: "charitable", label: "Charitable giving", max: 50000, step: 500, group: "Contributions & deductions", info: GLOSSARY.charitable },
+  { key: "homeOffice", label: "Home office deduction", max: 20000, step: 250, group: "Contributions & deductions", hint: "Reduces taxable income (self-employed)", info: "If you're self-employed and use part of your home regularly and exclusively for business, you can deduct a portion of housing costs. (W-2 employees generally cannot.)" },
+  { key: "additionalIncome", label: "Additional W-2 income", max: 100000, step: 1000, group: "Contributions & deductions", info: GLOSSARY.additionalIncome },
+  { key: "capitalGains", label: "Long-term capital gains (stocks)", max: 100000, step: 1000, group: "Investments", hint: "Taxed at preferential long-term rates", info: GLOSSARY.capitalGains },
+  { key: "qualifiedDividends", label: "Qualified dividends", max: 50000, step: 500, group: "Investments", hint: "Taxed at preferential long-term rates", info: GLOSSARY.qualifiedDividends },
+  { key: "bondInterest", label: "Taxable bond / CD interest", max: 50000, step: 500, group: "Investments", hint: "Taxed as ordinary income", info: GLOSSARY.bondInterest },
+  { key: "taxLossHarvest", label: "Tax-loss harvesting", max: 3000, step: 100, group: "Investments", hint: "Offsets up to $3,000 of ordinary income", info: GLOSSARY.taxLossHarvest },
+  { key: "rentalIncome", label: "Rental income", max: 100000, step: 1000, group: "Other income", hint: "Taxed as ordinary income (Schedule E)", info: "Net income from rental property is taxed as ordinary income. Expenses and depreciation can offset it — ask your CPA about Schedule E." },
+  { key: "sideHustleIncome", label: "Side hustle / 1099 income", max: 100000, step: 1000, group: "Other income", hint: "Adds income tax + ~14% self-employment tax", info: "Freelance/contractor income is taxed as ordinary income AND carries self-employment tax (~15.3% on 92.35% of net). You can deduct business expenses and may qualify for the QBI deduction." },
+];
+
+const FREE_SLIDERS = 2;
+const GROUP_ICONS = {
+  "Contributions & deductions": PiggyBank,
+  Investments: TrendingUp,
+  "Other income": Briefcase,
+};
+
+function SliderRow({ cfg, value, onChange, locked }) {
+  if (locked) {
+    return (
+      <div data-testid={`sim-${cfg.key}-locked`} className="select-none opacity-70">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <label className="text-sm font-medium text-slate-400">{cfg.label}</label>
+            <Lock className="h-3.5 w-3.5 text-slate-400" />
+          </div>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+            Pro
+          </span>
+        </div>
+        <div className="h-1.5 w-full rounded-full bg-slate-200" />
+        {cfg.hint && <p className="mt-1 text-xs text-slate-400">{cfg.hint}</p>}
+      </div>
+    );
+  }
   return (
-    <div data-testid={testid}>
+    <div data-testid={`sim-${cfg.key}`}>
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <label className="text-sm font-medium text-slate-700">{label}</label>
-          {info && <InfoTooltip text={info} label={label} testid={`info-${testid}`} />}
+          <label className="text-sm font-medium text-slate-700">{cfg.label}</label>
+          {cfg.info && <InfoTooltip text={cfg.info} label={cfg.label} testid={`info-sim-${cfg.key}`} />}
         </div>
         <span className="font-heading text-sm font-semibold text-navy-900">{fmtUSD(value)}</span>
       </div>
       <input
         type="range"
         min={0}
-        max={max}
-        step={step}
+        max={cfg.max}
+        step={cfg.step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full"
-        data-testid={`${testid}-input`}
+        data-testid={`sim-${cfg.key}-input`}
       />
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+      {cfg.hint && <p className="mt-1 text-xs text-slate-400">{cfg.hint}</p>}
     </div>
   );
 }
 
 export default function ScenarioSimulator({ rawFields }) {
-  const [contrib401k, set401k] = useState(0);
-  const [contribIRA, setIRA] = useState(0);
-  const [additionalIncome, setAddIncome] = useState(0);
-  const [charitable, setCharitable] = useState(0);
-  const [capitalGains, setCapitalGains] = useState(0);
-  const [qualifiedDividends, setQualifiedDividends] = useState(0);
-  const [bondInterest, setBondInterest] = useState(0);
-  const [taxLossHarvest, setTaxLossHarvest] = useState(0);
+  const { user } = useAuth();
+  const isPaid = !!(user?.billingStatus && user.billingStatus !== "free");
 
-  const result = useMemo(
-    () =>
-      simulate(rawFields, {
-        contrib401k,
-        contribIRA,
-        additionalIncome,
-        charitable,
-        capitalGains,
-        qualifiedDividends,
-        bondInterest,
-        taxLossHarvest,
-      }),
-    [
-      rawFields,
-      contrib401k,
-      contribIRA,
-      additionalIncome,
-      charitable,
-      capitalGains,
-      qualifiedDividends,
-      bondInterest,
-      taxLossHarvest,
-    ]
+  const [values, setValues] = useState(() =>
+    SLIDERS.reduce((acc, s) => ({ ...acc, [s.key]: 0 }), {})
   );
 
-  const savings = result.savings; // positive = savings
+  const isLocked = (idx) => !isPaid && idx >= FREE_SLIDERS;
+
+  // Only feed UNLOCKED slider values into the calculation.
+  const activeDeltas = useMemo(() => {
+    const d = {};
+    SLIDERS.forEach((s, idx) => {
+      d[s.key] = isLocked(idx) ? 0 : values[s.key];
+    });
+    return d;
+  }, [values, isPaid]);
+
+  const result = useMemo(() => simulate(rawFields, activeDeltas), [rawFields, activeDeltas]);
+
+  const savings = result.savings;
   const isSaving = savings >= 0;
 
-  const reset = () => {
-    set401k(0);
-    setIRA(0);
-    setAddIncome(0);
-    setCharitable(0);
-    setCapitalGains(0);
-    setQualifiedDividends(0);
-    setBondInterest(0);
-    setTaxLossHarvest(0);
-  };
+  const setVal = (key) => (v) => setValues((prev) => ({ ...prev, [key]: v }));
+  const reset = () => setValues(SLIDERS.reduce((acc, s) => ({ ...acc, [s.key]: 0 }), {}));
+
+  const groups = [...new Set(SLIDERS.map((s) => s.group))];
+  const lockedCount = isPaid ? 0 : SLIDERS.length - FREE_SLIDERS;
 
   return (
-    <div
-      data-testid="scenario-simulator"
-      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-    >
+    <div data-testid="scenario-simulator" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-5">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-navy-900">
           <Sliders className="h-5 w-5 text-teal-600" />
@@ -90,102 +109,56 @@ export default function ScenarioSimulator({ rawFields }) {
         <div>
           <h2 className="font-heading text-xl font-semibold text-navy-900">Scenario Simulator</h2>
           <p className="text-sm text-slate-500">
-            Move the sliders to see how changes could affect your estimated federal tax.
+            Move the sliders to see how changes could affect your estimated federal + state tax.
           </p>
         </div>
       </div>
 
+      {lockedCount > 0 && (
+        <div
+          data-testid="sim-upgrade-banner"
+          className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-6 py-3"
+        >
+          <p className="flex items-center gap-2 text-sm text-amber-800">
+            <Lock className="h-4 w-4" />
+            You're using 2 of {SLIDERS.length} scenarios. Unlock all {SLIDERS.length} with Pro.
+          </p>
+          <Link
+            to="/app/settings"
+            data-testid="sim-upgrade-cta"
+            className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-500"
+          >
+            Unlock all scenarios
+          </Link>
+        </div>
+      )}
+
       <div className="grid gap-8 p-6 md:grid-cols-2">
         <div className="flex flex-col gap-6">
-          <div className="flex items-center gap-2">
-            <PiggyBank className="h-4 w-4 text-teal-700" />
-            <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-navy-900">
-              Contributions & deductions
-            </h3>
-          </div>
-          <SliderRow
-            label="401(k) contribution"
-            value={contrib401k}
-            onChange={set401k}
-            max={23500}
-            step={500}
-            testid="sim-401k"
-            info="Money you put into an employer retirement plan before taxes. It lowers your taxable income today — you pay tax later when you withdraw in retirement. 2025 limit: $23,500 (under age 50)."
-          />
-          <SliderRow
-            label="IRA contribution"
-            value={contribIRA}
-            onChange={setIRA}
-            max={7000}
-            step={250}
-            testid="sim-ira"
-            info="A personal retirement account. Traditional IRA contributions may reduce your taxable income now. 2025 limit: $7,000 (under age 50)."
-          />
-          <SliderRow
-            label="Additional income"
-            value={additionalIncome}
-            onChange={setAddIncome}
-            max={100000}
-            step={1000}
-            testid="sim-income"
-            info="Extra taxable income — a raise, bonus, or side gig. This increases your taxable income and the tax you owe."
-          />
-          <SliderRow
-            label="Charitable giving"
-            value={charitable}
-            onChange={setCharitable}
-            max={50000}
-            step={500}
-            testid="sim-charity"
-            info="Donations to qualified charities can reduce your taxable income — but only if you itemize deductions instead of taking the standard deduction."
-          />
-
-          <div className="mt-2 flex items-center gap-2 border-t border-slate-100 pt-5">
-            <TrendingUp className="h-4 w-4 text-teal-700" />
-            <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-navy-900">
-              Investments
-            </h3>
-          </div>
-          <SliderRow
-            label="Long-term capital gains (stocks)"
-            value={capitalGains}
-            onChange={setCapitalGains}
-            max={100000}
-            step={1000}
-            testid="sim-capital-gains"
-            hint="Taxed at preferential long-term rates"
-            info="Profit from selling an investment (like a stock) you held for MORE than one year. These get lower tax rates (0%, 15%, or 20%). Held one year or less? It's a 'short-term' gain, taxed as ordinary income."
-          />
-          <SliderRow
-            label="Qualified dividends"
-            value={qualifiedDividends}
-            onChange={setQualifiedDividends}
-            max={50000}
-            step={500}
-            testid="sim-dividends"
-            hint="Taxed at preferential long-term rates"
-            info="Dividends from U.S. (and many foreign) stocks you've held long enough. They're taxed at the lower long-term capital-gains rates instead of your regular income rate."
-          />
-          <SliderRow
-            label="Taxable bond / CD interest"
-            value={bondInterest}
-            onChange={setBondInterest}
-            max={50000}
-            step={500}
-            testid="sim-bond-interest"
-            hint="Taxed as ordinary income"
-            info="Interest from corporate bonds, CDs, and savings accounts is taxed as ordinary income. Tip: interest from municipal (state/local government) bonds is usually FEDERALLY TAX-FREE."
-          />
-          <SliderRow
-            label="Tax-loss harvesting"
-            value={taxLossHarvest}
-            onChange={setTaxLossHarvest}
-            max={3000}
-            step={100}
-            testid="sim-tax-loss"
-            hint="Offsets up to $3,000 of ordinary income"
-            info="Selling losing investments to offset gains. Up to $3,000 of net losses can also reduce your ordinary income each year; any extra carries over to future years."
-          />
+          {groups.map((group, gi) => {
+            const Icon = GROUP_ICONS[group] || PiggyBank;
+            return (
+              <React.Fragment key={group}>
+                <div className={`flex items-center gap-2 ${gi > 0 ? "mt-2 border-t border-slate-100 pt-5" : ""}`}>
+                  <Icon className="h-4 w-4 text-teal-700" />
+                  <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-navy-900">
+                    {group}
+                  </h3>
+                </div>
+                {SLIDERS.map((cfg, idx) =>
+                  cfg.group === group ? (
+                    <SliderRow
+                      key={cfg.key}
+                      cfg={cfg}
+                      value={values[cfg.key]}
+                      onChange={setVal(cfg.key)}
+                      locked={isLocked(idx)}
+                    />
+                  ) : null
+                )}
+              </React.Fragment>
+            );
+          })}
 
           <button
             onClick={reset}
@@ -203,9 +176,7 @@ export default function ScenarioSimulator({ rawFields }) {
           </p>
           <p
             data-testid="sim-result"
-            className={`font-heading mt-1 text-5xl font-bold ${
-              isSaving ? "text-emerald-400" : "text-amber-400"
-            }`}
+            className={`font-heading mt-1 text-5xl font-bold ${isSaving ? "text-emerald-400" : "text-amber-400"}`}
           >
             {isSaving ? "" : "+"}
             {fmtUSD(Math.abs(savings))}
@@ -214,8 +185,7 @@ export default function ScenarioSimulator({ rawFields }) {
             <div className="flex justify-between">
               <span className="text-slate-400">Federal tax</span>
               <span className="font-medium">
-                {fmtUSD(result.baseFederalTax)} <span className="text-slate-500">→</span>{" "}
-                {fmtUSD(result.newFederalTax)}
+                {fmtUSD(result.baseFederalTax)} <span className="text-slate-500">→</span> {fmtUSD(result.newFederalTax)}
               </span>
             </div>
             <div className="flex justify-between">
@@ -224,8 +194,7 @@ export default function ScenarioSimulator({ rawFields }) {
                 <InfoTooltip tone="light" label="state tax" testid="info-sim-state" text={GLOSSARY.stateTax} />
               </span>
               <span className="font-medium">
-                {fmtUSD(result.baseStateTax)} <span className="text-slate-500">→</span>{" "}
-                {fmtUSD(result.newStateTax)}
+                {fmtUSD(result.baseStateTax)} <span className="text-slate-500">→</span> {fmtUSD(result.newStateTax)}
               </span>
             </div>
             <div className="flex justify-between border-t border-white/10 pt-2">

@@ -122,16 +122,29 @@ export function simulate(rawFields, deltas) {
     qualifiedDividends = 0,
     bondInterest = 0,
     taxLossHarvest = 0,
+    rentalIncome = 0,
+    sideHustleIncome = 0,
+    homeOffice = 0,
   } = deltas;
 
   // Tax-loss harvesting offsets up to $3,000 of ordinary income per year.
   const harvest = Math.min(Math.max(0, taxLossHarvest), 3000);
 
-  // Ordinary income: pre-tax contributions, charity & harvesting reduce it;
-  // additional income and taxable bond/CD interest increase it.
+  // Ordinary income: pre-tax contributions, charity, harvesting & the home-office
+  // deduction reduce it; additional income, taxable interest, rental and side-hustle
+  // income increase it.
   const newOrdinaryTaxable = Math.max(
     0,
-    baseTaxable - contrib401k - contribIRA - charitable - harvest + additionalIncome + bondInterest
+    baseTaxable -
+      contrib401k -
+      contribIRA -
+      charitable -
+      harvest -
+      homeOffice +
+      additionalIncome +
+      bondInterest +
+      rentalIncome +
+      sideHustleIncome
   );
   const newFederalOrdinaryTax = calcFederalTax(newOrdinaryTaxable, status);
 
@@ -141,7 +154,11 @@ export function simulate(rawFields, deltas) {
   const prefRate = ltcgRate(newOrdinaryTaxable + prefIncome, status);
   const prefFederalTax = prefIncome * prefRate;
 
-  const newFederalTax = newFederalOrdinaryTax + prefFederalTax;
+  // Self-employment / side-hustle income also carries SE tax (~15.3% on 92.35%
+  // of net earnings ≈ 14.13%), on top of income tax.
+  const seTax = Math.max(0, sideHustleIncome) * 0.1413;
+
+  const newFederalTax = newFederalOrdinaryTax + prefFederalTax + seTax;
 
   // Most states tax capital gains & dividends as ordinary income (no break).
   const newStateBase = newOrdinaryTaxable + prefIncome;
@@ -167,6 +184,54 @@ export function simulate(rawFields, deltas) {
     newTaxable: newStateBase,
     newMarginal: marginalRate(newOrdinaryTaxable, status),
     prefRate,
+  };
+}
+
+export function stdDeduction(filingStatus) {
+  const status = normalizeStatus(filingStatus);
+  return STANDARD_DEDUCTION_2025[status] || STANDARD_DEDUCTION_2025.single;
+}
+
+// Forward-looking, PDF-free projection used by the Mid-year Check-in.
+// Estimates the CURRENT-YEAR federal + state tax from a few inputs.
+export function projectTax({
+  filingStatus = "single",
+  state = "",
+  annualIncome = 0,
+  sideIncome = 0,
+  contrib401k = 0,
+  contribIRA = 0,
+  itemizedDeductions = 0,
+}) {
+  const status = normalizeStatus(filingStatus);
+  const gross = Math.max(0, Number(annualIncome) || 0) + Math.max(0, Number(sideIncome) || 0);
+
+  // Pre-tax retirement contributions reduce income before the deduction.
+  const afterContrib = Math.max(0, gross - (Number(contrib401k) || 0) - (Number(contribIRA) || 0));
+
+  const std = stdDeduction(status);
+  const deduction = Math.max(std, Number(itemizedDeductions) || 0);
+  const taxableIncome = Math.max(0, afterContrib - deduction);
+
+  const federalTax = calcFederalTax(taxableIncome, status);
+  const seTax = Math.max(0, Number(sideIncome) || 0) * 0.1413;
+  const stateTax = estStateTax(state, taxableIncome);
+  const combined = federalTax + seTax + stateTax;
+
+  return {
+    gross,
+    taxableIncome,
+    deduction,
+    usedStandard: deduction === std,
+    federalTax: federalTax + seTax,
+    incomeTax: federalTax,
+    seTax,
+    stateTax,
+    combined,
+    effectiveRate: gross > 0 ? combined / gross : 0,
+    marginalRate: marginalRate(taxableIncome, status),
+    stateCode: state,
+    stateRate: stateRate(state),
   };
 }
 
