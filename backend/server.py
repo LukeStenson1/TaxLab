@@ -762,14 +762,25 @@ async def startup():
 
 app.include_router(api)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        FRONTEND_URL,
+import re
+
+def is_allowed_origin(origin: str) -> bool:
+    if not origin:
+        return False
+    allowed = [
         "http://localhost:3000",
         "https://taxlab-ivory.vercel.app",
-        "https://taxlab-ocyey2pka-lukestenson1s-projects.vercel.app",
-    ],
+    ]
+    if origin in allowed:
+        return True
+    # Allow any Vercel preview deployment for this project
+    if re.match(r"https://taxlab-[a-z0-9-]+-lukestenson1s-projects\.vercel\.app", origin):
+        return True
+    return False
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https://taxlab(-[a-z0-9]+)*(-lukestenson1s-projects)?\.vercel\.app|http://localhost:3000",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
