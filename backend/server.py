@@ -308,7 +308,7 @@ async def run_gemini_analysis(pdf_path: str, context: dict) -> dict:
         raise HTTPException(status_code=500, detail="Gemini API key is not configured.")
 
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-2.0-flash",
         system_instruction=ANALYSIS_SYSTEM_PROMPT,
     )
 
