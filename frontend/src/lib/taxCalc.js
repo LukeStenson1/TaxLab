@@ -81,29 +81,68 @@ export function marginalRate(taxableIncome, filingStatus) {
   return rate;
 }
 
+// Long-term capital gains / qualified dividend breakpoints (2024).
+export const LTCG_BREAKPOINTS_2024 = {
+  single: [47025, 518900],
+  "married filing jointly": [94050, 583750],
+  "married filing separately": [47025, 291850],
+  "head of household": [63000, 551350],
+};
+
+// Preferential rate for long-term gains & qualified dividends, based on the
+// total taxable income they stack on top of.
+export function ltcgRate(totalTaxableIncome, filingStatus) {
+  const status = normalizeStatus(filingStatus);
+  const [low, high] = LTCG_BREAKPOINTS_2024[status] || LTCG_BREAKPOINTS_2024.single;
+  if (totalTaxableIncome <= low) return 0;
+  if (totalTaxableIncome <= high) return 0.15;
+  return 0.2;
+}
+
 // Given the extracted return + slider deltas, compute estimated tax impact.
 export function simulate(rawFields, deltas) {
   const status = rawFields?.filingStatus || "single";
   const baseTaxable = Number(rawFields?.taxableIncome) || 0;
   const baseTax = calcFederalTax(baseTaxable, status);
 
-  const { contrib401k = 0, contribIRA = 0, additionalIncome = 0, charitable = 0 } = deltas;
+  const {
+    contrib401k = 0,
+    contribIRA = 0,
+    additionalIncome = 0,
+    charitable = 0,
+    capitalGains = 0,
+    qualifiedDividends = 0,
+    bondInterest = 0,
+    taxLossHarvest = 0,
+  } = deltas;
 
-  // Pre-tax contributions and charitable giving reduce taxable income;
-  // additional income increases it.
-  const newTaxable = Math.max(
+  // Tax-loss harvesting offsets up to $3,000 of ordinary income per year.
+  const harvest = Math.min(Math.max(0, taxLossHarvest), 3000);
+
+  // Ordinary income: pre-tax contributions, charity & harvesting reduce it;
+  // additional income and taxable bond/CD interest increase it.
+  const newOrdinaryTaxable = Math.max(
     0,
-    baseTaxable - contrib401k - contribIRA - charitable + additionalIncome
+    baseTaxable - contrib401k - contribIRA - charitable - harvest + additionalIncome + bondInterest
   );
-  const newTax = calcFederalTax(newTaxable, status);
+  const newOrdinaryTax = calcFederalTax(newOrdinaryTaxable, status);
+
+  // Long-term capital gains & qualified dividends are taxed at preferential
+  // rates, stacked on top of ordinary taxable income.
+  const prefIncome = Math.max(0, capitalGains) + Math.max(0, qualifiedDividends);
+  const prefRate = ltcgRate(newOrdinaryTaxable + prefIncome, status);
+  const prefTax = prefIncome * prefRate;
+
+  const newTax = newOrdinaryTax + prefTax;
 
   return {
     baseTax,
     newTax,
     delta: newTax - baseTax, // negative = savings
     savings: baseTax - newTax,
-    newTaxable,
-    newMarginal: marginalRate(newTaxable, status),
+    newTaxable: newOrdinaryTaxable + prefIncome,
+    newMarginal: marginalRate(newOrdinaryTaxable, status),
+    prefRate,
   };
 }
 

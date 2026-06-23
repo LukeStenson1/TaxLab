@@ -4,6 +4,23 @@ import { CreditCard, Lock, Trash2, Check, Loader2, BadgeCheck } from "lucide-rea
 import api, { formatApiErrorDetail } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
+const PLAN_FEATURES = {
+  pro: [
+    "Unlimited tax return analyses",
+    "AI insights ranked by dollar impact",
+    "Scenario simulator with investments",
+    "Downloadable PDF reports",
+    "Year-over-year dashboard",
+    "Email support",
+  ],
+  lifetime: [
+    "Everything in Pro",
+    "One-time payment — lifetime access",
+    "All future updates included",
+    "Priority support",
+  ],
+};
+
 export default function Settings() {
   const { user, refresh, logout } = useAuth();
   const navigate = useNavigate();
@@ -94,16 +111,33 @@ export default function Settings() {
           {!isPaid && (
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               {plans.map((p) => (
-                <div key={p.id} className="rounded-xl border border-slate-200 p-5">
+                <div key={p.id} className="flex flex-col rounded-xl border border-slate-200 p-5">
                   <p className="font-heading text-lg font-semibold text-navy-900">{p.name}</p>
                   <p className="font-heading mt-1 text-2xl font-bold text-navy-900">
                     ${p.amount.toFixed(0)}
+                    {p.id === "pro" && (
+                      <span className="ml-1 text-sm font-medium text-slate-500">/ month</span>
+                    )}
+                    {p.id === "lifetime" && (
+                      <span className="ml-1 text-sm font-medium text-slate-500">one-time</span>
+                    )}
                   </p>
+                  <ul
+                    data-testid={`plan-features-${p.id}`}
+                    className="mt-4 flex-1 space-y-2"
+                  >
+                    {(PLAN_FEATURES[p.id] || []).map((feature) => (
+                      <li key={feature} className="flex items-start gap-2 text-sm text-slate-600">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
                   <button
                     onClick={() => startCheckout(p.id)}
                     disabled={checkoutLoading === p.id}
                     data-testid={`upgrade-${p.id}`}
-                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 py-2.5 text-sm font-medium text-white transition-colors hover:bg-teal-600 disabled:opacity-60"
+                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 py-2.5 text-sm font-medium text-white transition-colors hover:bg-teal-600 disabled:opacity-60"
                   >
                     {checkoutLoading === p.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

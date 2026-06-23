@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { Sliders } from "lucide-react";
+import { Sliders, PiggyBank, TrendingUp } from "lucide-react";
 import { simulate, fmtUSD, fmtPct } from "../lib/taxCalc";
 
-function SliderRow({ label, value, onChange, max, step, testid }) {
+function SliderRow({ label, value, onChange, max, step, testid, hint }) {
   return (
     <div data-testid={testid}>
       <div className="mb-2 flex items-center justify-between">
@@ -19,6 +19,7 @@ function SliderRow({ label, value, onChange, max, step, testid }) {
         className="w-full"
         data-testid={`${testid}-input`}
       />
+      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
     </div>
   );
 }
@@ -28,10 +29,34 @@ export default function ScenarioSimulator({ rawFields }) {
   const [contribIRA, setIRA] = useState(0);
   const [additionalIncome, setAddIncome] = useState(0);
   const [charitable, setCharitable] = useState(0);
+  const [capitalGains, setCapitalGains] = useState(0);
+  const [qualifiedDividends, setQualifiedDividends] = useState(0);
+  const [bondInterest, setBondInterest] = useState(0);
+  const [taxLossHarvest, setTaxLossHarvest] = useState(0);
 
   const result = useMemo(
-    () => simulate(rawFields, { contrib401k, contribIRA, additionalIncome, charitable }),
-    [rawFields, contrib401k, contribIRA, additionalIncome, charitable]
+    () =>
+      simulate(rawFields, {
+        contrib401k,
+        contribIRA,
+        additionalIncome,
+        charitable,
+        capitalGains,
+        qualifiedDividends,
+        bondInterest,
+        taxLossHarvest,
+      }),
+    [
+      rawFields,
+      contrib401k,
+      contribIRA,
+      additionalIncome,
+      charitable,
+      capitalGains,
+      qualifiedDividends,
+      bondInterest,
+      taxLossHarvest,
+    ]
   );
 
   const savings = result.savings; // positive = savings
@@ -42,6 +67,10 @@ export default function ScenarioSimulator({ rawFields }) {
     setIRA(0);
     setAddIncome(0);
     setCharitable(0);
+    setCapitalGains(0);
+    setQualifiedDividends(0);
+    setBondInterest(0);
+    setTaxLossHarvest(0);
   };
 
   return (
@@ -63,11 +92,17 @@ export default function ScenarioSimulator({ rawFields }) {
 
       <div className="grid gap-8 p-6 md:grid-cols-2">
         <div className="flex flex-col gap-6">
+          <div className="flex items-center gap-2">
+            <PiggyBank className="h-4 w-4 text-teal-700" />
+            <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-navy-900">
+              Contributions & deductions
+            </h3>
+          </div>
           <SliderRow
             label="401(k) contribution"
             value={contrib401k}
             onChange={set401k}
-            max={23000}
+            max={23500}
             step={500}
             testid="sim-401k"
           />
@@ -95,6 +130,50 @@ export default function ScenarioSimulator({ rawFields }) {
             step={500}
             testid="sim-charity"
           />
+
+          <div className="mt-2 flex items-center gap-2 border-t border-slate-100 pt-5">
+            <TrendingUp className="h-4 w-4 text-teal-700" />
+            <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-navy-900">
+              Investments
+            </h3>
+          </div>
+          <SliderRow
+            label="Long-term capital gains (stocks)"
+            value={capitalGains}
+            onChange={setCapitalGains}
+            max={100000}
+            step={1000}
+            testid="sim-capital-gains"
+            hint="Taxed at preferential long-term rates"
+          />
+          <SliderRow
+            label="Qualified dividends"
+            value={qualifiedDividends}
+            onChange={setQualifiedDividends}
+            max={50000}
+            step={500}
+            testid="sim-dividends"
+            hint="Taxed at preferential long-term rates"
+          />
+          <SliderRow
+            label="Taxable bond / CD interest"
+            value={bondInterest}
+            onChange={setBondInterest}
+            max={50000}
+            step={500}
+            testid="sim-bond-interest"
+            hint="Taxed as ordinary income"
+          />
+          <SliderRow
+            label="Tax-loss harvesting"
+            value={taxLossHarvest}
+            onChange={setTaxLossHarvest}
+            max={3000}
+            step={100}
+            testid="sim-tax-loss"
+            hint="Offsets up to $3,000 of ordinary income"
+          />
+
           <button
             onClick={reset}
             data-testid="sim-reset"
@@ -130,9 +209,14 @@ export default function ScenarioSimulator({ rawFields }) {
               <span className="text-slate-400">New marginal rate</span>
               <span className="font-medium">{fmtPct(result.newMarginal)}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Cap-gains / dividend rate</span>
+              <span className="font-medium">{fmtPct(result.prefRate)}</span>
+            </div>
           </div>
           <p className="mt-4 text-xs text-slate-400">
-            Calculated live in your browser using 2024 federal brackets. Estimates only.
+            Calculated live in your browser using 2024 federal brackets. Capital gains &
+            qualified dividends use long-term rates. Estimates only.
           </p>
         </div>
       </div>
