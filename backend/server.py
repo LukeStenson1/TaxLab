@@ -15,7 +15,8 @@ from typing import Optional, List, Dict, Any
 import bcrypt
 import jwt
 import stripe
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from bson import ObjectId
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
