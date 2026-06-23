@@ -58,3 +58,18 @@ Gemini 2.5 Flash · own Gemini key · email/password auth only · real Stripe ·
 ## Backlog / Next
 - E2E test the full upload→analysis flow with a real PDF + state selected.
 - State tax is a simplified flat estimate; could upgrade to true per-state brackets/standard deductions later.
+
+## Iteration 5 (2026-06-23) — Engagement + conversion features
+- NEW Mid-year Check-in (/app/checkin): PDF-free projection via taxCalc.projectTax (federal + SE + state), live tips (401k/IRA headroom, SE tax), nav item added. VERIFIED: $80k single → $9,049 tax / $64,250 taxable / 22% marginal.
+- NEW public Learn page (/learn): "What does my tax bracket actually mean?" article + glossary (AMT, NIIT, QBI, cap gains, duty days, tax-loss harvesting, std deduction, marginal vs effective). Linked from Landing nav. VERIFIED rendering.
+- Free vs paid gating (billingStatus !== 'free'): (a) Analysis insights — top 2 full, rest blurred w/ "Unlock full report" CTA; (b) Scenario Simulator — 2 free sliders, other 9 locked w/ upgrade banner; (c) PDF download paid-only (free → routes to Settings, button reads "Download PDF (Pro)"). Code-reviewed PASS.
+- Simulator gained rental income, side-hustle (1099 w/ ~14% SE tax), home-office deduction sliders.
+- YoY now has a "Here's why" narrative explaining effective-rate changes.
+- Fixed check-in year label drift (pinned to TAX_YEAR=2025). Upload errors now scroll into view.
+
+## KNOWN ISSUE (environment, not code)
+- Preview backend/.env GEMINI_API_KEY is INVALID (prefix AQ.Ab8..., Google returns 401 ACCESS_TOKEN_TYPE_UNSUPPORTED — not an AIza... AI Studio key). So POST /api/returns/analyze 503s in PREVIEW and the analyzed-report flow (and its gating UI) can't run here until a valid Google AI Studio key is set. User's Render/Vercel deploy uses their own key.
+
+## Backlog / Next
+- E2E re-test free-user gating on a real analyzed return once a valid GEMINI key is in preview.
+- Optional: paid-path E2E (requires Stripe checkout). Reflect 2025 figures + state in the downloadable PDF.

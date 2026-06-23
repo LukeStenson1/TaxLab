@@ -16,6 +16,7 @@ const FILING_STATUSES = [
 
 const LIMIT_401K = 23500;
 const LIMIT_IRA = 7000;
+const TAX_YEAR = 2025; // matches the bracket + standard-deduction data in taxCalc
 
 function Field({ label, info, children, hint }) {
   return (
@@ -170,7 +171,7 @@ export default function CheckIn() {
           <div className="space-y-6">
             <div className="rounded-2xl bg-navy-900 p-8 text-white shadow-sm">
               <p className="flex items-center gap-2 text-sm font-medium text-slate-300">
-                <Sparkles className="h-4 w-4 text-teal-400" /> Projected {new Date().getFullYear()} tax (federal + state)
+                <Sparkles className="h-4 w-4 text-teal-400" /> Projected {TAX_YEAR} tax (federal + state)
               </p>
               <p data-testid="checkin-combined" className="font-heading mt-1 text-5xl font-bold text-teal-300">
                 {fmtUSD(result.combined)}
@@ -213,7 +214,7 @@ export default function CheckIn() {
                 </div>
               </div>
               <p className="mt-4 text-xs text-slate-400">
-                Simplified estimate using 2025 federal brackets and the {new Date().getFullYear()} standard
+                Simplified estimate using {TAX_YEAR} federal brackets and the {TAX_YEAR} standard
                 deduction. Not tax advice.
               </p>
             </div>

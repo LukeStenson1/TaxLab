@@ -82,6 +82,7 @@ export default function Upload() {
     } catch (err) {
       setError(formatApiErrorDetail(err.response?.data?.detail) || err.message);
       setAnalyzing(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
