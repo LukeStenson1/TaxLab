@@ -327,7 +327,7 @@ async def run_gemini_analysis(pdf_path: str, context: dict) -> dict:
                 config=types.GenerateContentConfig(
                     system_instruction=ANALYSIS_SYSTEM_PROMPT,
                     temperature=0.1,
-                    max_output_tokens=4096,
+                    max_output_tokens=8192,
                 ),
             )
             text = response.text
