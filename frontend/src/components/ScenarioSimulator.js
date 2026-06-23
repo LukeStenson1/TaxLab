@@ -1,12 +1,16 @@
 import React, { useMemo, useState } from "react";
 import { Sliders, PiggyBank, TrendingUp } from "lucide-react";
 import { simulate, fmtUSD, fmtPct } from "../lib/taxCalc";
+import InfoTooltip from "./InfoTooltip";
 
-function SliderRow({ label, value, onChange, max, step, testid, hint }) {
+function SliderRow({ label, value, onChange, max, step, testid, hint, info }) {
   return (
     <div data-testid={testid}>
       <div className="mb-2 flex items-center justify-between">
-        <label className="text-sm font-medium text-slate-700">{label}</label>
+        <div className="flex items-center gap-1.5">
+          <label className="text-sm font-medium text-slate-700">{label}</label>
+          {info && <InfoTooltip text={info} label={label} testid={`info-${testid}`} />}
+        </div>
         <span className="font-heading text-sm font-semibold text-navy-900">{fmtUSD(value)}</span>
       </div>
       <input
@@ -105,6 +109,7 @@ export default function ScenarioSimulator({ rawFields }) {
             max={23500}
             step={500}
             testid="sim-401k"
+            info="Money you put into an employer retirement plan before taxes. It lowers your taxable income today — you pay tax later when you withdraw in retirement. 2025 limit: $23,500 (under age 50)."
           />
           <SliderRow
             label="IRA contribution"
@@ -113,6 +118,7 @@ export default function ScenarioSimulator({ rawFields }) {
             max={7000}
             step={250}
             testid="sim-ira"
+            info="A personal retirement account. Traditional IRA contributions may reduce your taxable income now. 2025 limit: $7,000 (under age 50)."
           />
           <SliderRow
             label="Additional income"
@@ -121,6 +127,7 @@ export default function ScenarioSimulator({ rawFields }) {
             max={100000}
             step={1000}
             testid="sim-income"
+            info="Extra taxable income — a raise, bonus, or side gig. This increases your taxable income and the tax you owe."
           />
           <SliderRow
             label="Charitable giving"
@@ -129,6 +136,7 @@ export default function ScenarioSimulator({ rawFields }) {
             max={50000}
             step={500}
             testid="sim-charity"
+            info="Donations to qualified charities can reduce your taxable income — but only if you itemize deductions instead of taking the standard deduction."
           />
 
           <div className="mt-2 flex items-center gap-2 border-t border-slate-100 pt-5">
@@ -145,6 +153,7 @@ export default function ScenarioSimulator({ rawFields }) {
             step={1000}
             testid="sim-capital-gains"
             hint="Taxed at preferential long-term rates"
+            info="Profit from selling an investment (like a stock) you held for MORE than one year. These get lower tax rates (0%, 15%, or 20%). Held one year or less? It's a 'short-term' gain, taxed as ordinary income."
           />
           <SliderRow
             label="Qualified dividends"
@@ -154,6 +163,7 @@ export default function ScenarioSimulator({ rawFields }) {
             step={500}
             testid="sim-dividends"
             hint="Taxed at preferential long-term rates"
+            info="Dividends from U.S. (and many foreign) stocks you've held long enough. They're taxed at the lower long-term capital-gains rates instead of your regular income rate."
           />
           <SliderRow
             label="Taxable bond / CD interest"
@@ -163,6 +173,7 @@ export default function ScenarioSimulator({ rawFields }) {
             step={500}
             testid="sim-bond-interest"
             hint="Taxed as ordinary income"
+            info="Interest from corporate bonds, CDs, and savings accounts is taxed as ordinary income. Tip: interest from municipal (state/local government) bonds is usually FEDERALLY TAX-FREE."
           />
           <SliderRow
             label="Tax-loss harvesting"
@@ -172,6 +183,7 @@ export default function ScenarioSimulator({ rawFields }) {
             step={100}
             testid="sim-tax-loss"
             hint="Offsets up to $3,000 of ordinary income"
+            info="Selling losing investments to offset gains. Up to $3,000 of net losses can also reduce your ordinary income each year; any extra carries over to future years."
           />
 
           <button
@@ -206,11 +218,27 @@ export default function ScenarioSimulator({ rawFields }) {
               <span className="font-medium">{fmtUSD(result.newTax)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">New marginal rate</span>
+              <span className="flex items-center gap-1.5 text-slate-400">
+                New marginal rate
+                <InfoTooltip
+                  tone="light"
+                  label="marginal rate"
+                  testid="info-marginal-rate"
+                  text="The tax rate on your NEXT dollar of income — your top tax bracket. It's different from your effective (average) rate, which spreads across all your income."
+                />
+              </span>
               <span className="font-medium">{fmtPct(result.newMarginal)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Cap-gains / dividend rate</span>
+              <span className="flex items-center gap-1.5 text-slate-400">
+                Cap-gains / dividend rate
+                <InfoTooltip
+                  tone="light"
+                  label="capital gains rate"
+                  testid="info-ltcg-rate"
+                  text="The long-term rate applied to your capital gains and qualified dividends — 0%, 15%, or 20% depending on your taxable income."
+                />
+              </span>
               <span className="font-medium">{fmtPct(result.prefRate)}</span>
             </div>
           </div>

@@ -5,12 +5,23 @@ import api from "../lib/api";
 import InsightCard from "../components/InsightCard";
 import ScenarioSimulator from "../components/ScenarioSimulator";
 import Disclaimer from "../components/Disclaimer";
+import InfoTooltip from "../components/InfoTooltip";
 import { fmtUSD, fmtPct } from "../lib/taxCalc";
 
-function StatTile({ label, value, testid }) {
+function StatTile({ label, value, testid, info }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
+      <div className="flex items-center gap-1.5">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
+        {info && (
+          <InfoTooltip
+            text={info}
+            label={label}
+            position="bottom"
+            testid={`info-${testid}`}
+          />
+        )}
+      </div>
       <p data-testid={testid} className="font-heading mt-1 text-2xl font-bold text-navy-900">
         {value}
       </p>
@@ -108,10 +119,30 @@ export default function Analysis() {
       <div className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
         {/* Summary stats */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatTile label="AGI" value={fmtUSD(rf.agi)} testid="stat-agi" />
-          <StatTile label="Taxable income" value={fmtUSD(rf.taxableIncome)} testid="stat-taxable" />
-          <StatTile label="Total tax" value={fmtUSD(rf.totalTax)} testid="stat-total-tax" />
-          <StatTile label="Effective rate" value={fmtPct(rf.effectiveRate)} testid="stat-effective" />
+          <StatTile
+            label="AGI"
+            value={fmtUSD(rf.agi)}
+            testid="stat-agi"
+            info="Adjusted Gross Income — your total income minus certain adjustments like retirement contributions and student-loan interest. It's the starting point for calculating your tax."
+          />
+          <StatTile
+            label="Taxable income"
+            value={fmtUSD(rf.taxableIncome)}
+            testid="stat-taxable"
+            info="The part of your income that's actually taxed, after subtracting your standard or itemized deductions from your AGI."
+          />
+          <StatTile
+            label="Total tax"
+            value={fmtUSD(rf.totalTax)}
+            testid="stat-total-tax"
+            info="The total federal income tax you owe for the year — before counting any withholding or payments you've already made."
+          />
+          <StatTile
+            label="Effective rate"
+            value={fmtPct(rf.effectiveRate)}
+            testid="stat-effective"
+            info="Your average tax rate across all income. Formula: Total tax ÷ Taxable income. It's usually lower than your top tax bracket (your marginal rate)."
+          />
         </div>
 
         {/* Insights */}
