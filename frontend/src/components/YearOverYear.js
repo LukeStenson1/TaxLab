@@ -1,6 +1,9 @@
 import React from "react";
 import { ArrowUpRight, ArrowDownRight, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { fmtUSD, fmtPct } from "../lib/taxCalc";
+import { estStateTax } from "../lib/stateTax";
+import InfoTooltip from "./InfoTooltip";
+import GLOSSARY from "../lib/glossary";
 
 function totalOpportunity(ret) {
   return (ret.insights || []).reduce((sum, i) => sum + (Number(i.dollarImpact) || 0), 0);
@@ -43,11 +46,17 @@ export default function YearOverYear({ returns }) {
   if (data.length < 2) return null;
 
   const rows = [
-    { key: "agi", label: "AGI", kind: "usd", direction: "neutral", get: (r) => Number(r.rawFields?.agi) || 0, fmt: fmtUSD },
-    { key: "taxable", label: "Taxable income", kind: "usd", direction: "neutral", get: (r) => Number(r.rawFields?.taxableIncome) || 0, fmt: fmtUSD },
-    { key: "tax", label: "Total tax", kind: "usd", direction: "lower-better", get: (r) => Number(r.rawFields?.totalTax) || 0, fmt: fmtUSD },
-    { key: "eff", label: "Effective rate", kind: "pct", direction: "lower-better", get: (r) => pctVal(r.rawFields?.effectiveRate), fmt: (v) => `${v.toFixed(1)}%` },
-    { key: "opp", label: "Est. total opportunity", kind: "usd", direction: "neutral", get: (r) => totalOpportunity(r), fmt: fmtUSD },
+    { key: "agi", label: "AGI", info: GLOSSARY.agi, kind: "usd", direction: "neutral", get: (r) => Number(r.rawFields?.agi) || 0, fmt: fmtUSD },
+    { key: "taxable", label: "Taxable income", info: GLOSSARY.taxableIncome, kind: "usd", direction: "neutral", get: (r) => Number(r.rawFields?.taxableIncome) || 0, fmt: fmtUSD },
+    { key: "tax", label: "Federal tax", info: GLOSSARY.federalTax, kind: "usd", direction: "lower-better", get: (r) => Number(r.rawFields?.totalTax) || 0, fmt: fmtUSD },
+    { key: "statetax", label: "State tax (est.)", info: GLOSSARY.stateTax, kind: "usd", direction: "lower-better", get: (r) => estStateTax(r.rawFields?.state, r.rawFields?.taxableIncome), fmt: fmtUSD },
+    { key: "combined", label: "Combined rate", info: GLOSSARY.combinedEffectiveRate, kind: "pct", direction: "lower-better", get: (r) => {
+      const agi = Number(r.rawFields?.agi) || 0;
+      const combined = (Number(r.rawFields?.totalTax) || 0) + estStateTax(r.rawFields?.state, r.rawFields?.taxableIncome);
+      return agi > 0 ? (combined / agi) * 100 : 0;
+    }, fmt: (v) => `${v.toFixed(1)}%` },
+    { key: "eff", label: "Federal effective rate", info: GLOSSARY.effectiveRate, kind: "pct", direction: "lower-better", get: (r) => pctVal(r.rawFields?.effectiveRate), fmt: (v) => `${v.toFixed(1)}%` },
+    { key: "opp", label: "Est. total opportunity", info: GLOSSARY.dollarImpact, kind: "usd", direction: "neutral", get: (r) => totalOpportunity(r), fmt: fmtUSD },
   ];
 
   const latest = data[data.length - 1];
@@ -127,7 +136,12 @@ export default function YearOverYear({ returns }) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.key} className="border-b border-slate-50" data-testid={`yoy-row-${row.key}`}>
-                <td className="px-6 py-3 font-medium text-slate-700">{row.label}</td>
+                <td className="px-6 py-3 font-medium text-slate-700">
+                  <span className="flex items-center gap-1.5">
+                    {row.label}
+                    {row.info && <InfoTooltip label={row.label} testid={`info-yoy-${row.key}`} text={row.info} />}
+                  </span>
+                </td>
                 {data.map((r, idx) => {
                   const val = row.get(r);
                   const prev = idx > 0 ? row.get(data[idx - 1]) : null;

@@ -74,12 +74,12 @@ TAX_REFERENCE = {
         "retirement": {"limit_401k": 23000, "catchup_401k": 7500, "limit_ira": 7000, "catchup_ira": 1000, "sep_max": 69000},
     },
     2025: {
-        "rev_proc": "Rev. Proc. 2024-40; IRS COLA notice 2024 (retirement limits)",
+        "rev_proc": "Rev. Proc. 2024-40; One Big Beautiful Bill Act (OBBBA) standard deduction increase; IRS COLA notice 2024 (retirement limits)",
         "standard_deduction": {
-            "single": 15000,
-            "married filing jointly": 30000,
-            "married filing separately": 15000,
-            "head of household": 22500,
+            "single": 15750,
+            "married filing jointly": 31500,
+            "married filing separately": 15750,
+            "head of household": 23625,
         },
         "brackets": {
             "single": [[0, 0.10], [11925, 0.12], [48475, 0.22], [103350, 0.24], [197300, 0.32], [250525, 0.35], [626350, 0.37]],

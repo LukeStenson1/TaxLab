@@ -1,6 +1,8 @@
 import React from "react";
 import { TrendingUp, HelpCircle } from "lucide-react";
 import { fmtUSD } from "../lib/taxCalc";
+import InfoTooltip from "./InfoTooltip";
+import GLOSSARY from "../lib/glossary";
 
 const MODULE_LABELS = {
   bracket_proximity: "Tax Bracket",
@@ -11,6 +13,17 @@ const MODULE_LABELS = {
   underpayment_risk: "Underpayment",
   self_employment: "Self-Employment",
   niit_proximity: "Investment Tax",
+};
+
+const MODULE_INFO = {
+  bracket_proximity: GLOSSARY.bracketProximity,
+  capital_gains: GLOSSARY.capitalGains,
+  retirement_headroom: GLOSSARY.retirement,
+  deduction_gap: GLOSSARY.deductions,
+  credit_phaseout: GLOSSARY.credits,
+  underpayment_risk: GLOSSARY.underpayment,
+  self_employment: GLOSSARY.selfEmployment,
+  niit_proximity: GLOSSARY.niit,
 };
 
 const SEVERITY_STYLES = {
@@ -30,8 +43,15 @@ export default function InsightCard({ insight, rank }) {
     >
       <div className="flex flex-1 flex-col gap-3 p-6">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-[0.15em] text-teal-700">
+          <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.15em] text-teal-700">
             {MODULE_LABELS[insight.module] || "Insight"}
+            {MODULE_INFO[insight.module] && (
+              <InfoTooltip
+                label={MODULE_LABELS[insight.module]}
+                testid={`info-insight-${insight.module}`}
+                text={MODULE_INFO[insight.module]}
+              />
+            )}
           </span>
           <span
             className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${
@@ -65,6 +85,7 @@ export default function InsightCard({ insight, rank }) {
             {fmtUSD(Math.abs(impact))}
           </span>
           <span className="text-xs text-slate-400">estimated impact</span>
+          <InfoTooltip label="estimated impact" testid={`info-impact-${insight.module}`} text={GLOSSARY.dollarImpact} />
         </div>
       </div>
 

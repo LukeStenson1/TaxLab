@@ -12,10 +12,13 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Disclaimer from "../components/Disclaimer";
+import InfoTooltip from "../components/InfoTooltip";
+import GLOSSARY from "../lib/glossary";
 
 const sampleInsights = [
   {
     tag: "Tax Bracket",
+    info: GLOSSARY.bracketProximity,
     title: "You're $4,200 from the next bracket",
     text: "Your taxable income sits near the top of the 22% bracket. A pre-tax contribution could keep more of your next dollar at 22% instead of 24%.",
     impact: "+$1,008",
@@ -23,6 +26,7 @@ const sampleInsights = [
   },
   {
     tag: "Retirement",
+    info: GLOSSARY.retirement,
     title: "Unused IRA contribution room",
     text: "You contributed less than the annual IRA limit. Filling that headroom may reduce taxable income and grow tax-advantaged savings.",
     impact: "+$1,540",
@@ -30,6 +34,7 @@ const sampleInsights = [
   },
   {
     tag: "Investment Tax",
+    info: GLOSSARY.niit,
     title: "Approaching the 3.8% NIIT threshold",
     text: "Your modified AGI is close to the Net Investment Income Tax line. Crossing it adds a 3.8% surtax on investment income.",
     impact: "+$760",
@@ -197,7 +202,10 @@ export default function Landing() {
             {sampleInsights.map((c, i) => (
               <div key={i} className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex flex-1 flex-col gap-3 p-6">
-                  <span className="text-xs font-bold uppercase tracking-[0.15em] text-teal-700">{c.tag}</span>
+                  <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.15em] text-teal-700">
+                    {c.tag}
+                    {c.info && <InfoTooltip label={c.tag} testid={`info-sample-${i}`} text={c.info} />}
+                  </span>
                   <h3 className="font-heading text-lg font-semibold text-navy-900">{c.title}</h3>
                   <p className="text-sm leading-relaxed text-slate-600">{c.text}</p>
                   <div className="mt-auto flex items-center gap-2 pt-2">

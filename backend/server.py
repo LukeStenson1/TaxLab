@@ -239,6 +239,7 @@ def build_analysis_prompt(context: dict) -> str:
 
 USER CONTEXT:
 - Filing status: {context.get('filingStatus')}
+- State of residence: {context.get('state') or 'not provided'}
 - Number of dependents: {context.get('dependents')}
 - Has self-employment income: {context.get('selfEmployment')}
 - Primary financial goal this year: {context.get('goal')}
@@ -352,6 +353,7 @@ async def run_gemini_analysis(pdf_path: str, context: dict) -> dict:
 async def analyze_return(
     pdf: UploadFile = File(...),
     filingStatus: str = Form(...),
+    state: str = Form(""),
     dependents: int = Form(0),
     selfEmployment: str = Form("no"),
     goal: str = Form("general awareness"),
@@ -367,6 +369,7 @@ async def analyze_return(
 
     context = {
         "filingStatus": filingStatus,
+        "state": state,
         "dependents": dependents,
         "selfEmployment": selfEmployment,
         "goal": goal,
@@ -385,6 +388,8 @@ async def analyze_return(
             os.remove(tmp_path)
 
     raw_fields = analysis.get("rawFields", {})
+    if state:
+        raw_fields["state"] = state
     insights = analysis.get("insights", [])
     insights = sorted(insights, key=lambda i: i.get("dollarImpact", 0) or 0, reverse=True)
     tax_year = analysis.get("taxYear") or datetime.now(timezone.utc).year - 1

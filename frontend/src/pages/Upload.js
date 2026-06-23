@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { UploadCloud, FileText, X, Loader2 } from "lucide-react";
 import api, { formatApiErrorDetail } from "../lib/api";
 import Disclaimer from "../components/Disclaimer";
+import InfoTooltip from "../components/InfoTooltip";
+import GLOSSARY from "../lib/glossary";
+import { STATES } from "../lib/stateTax";
 
 const FILING_STATUSES = [
   "single",
@@ -29,6 +32,7 @@ export default function Upload() {
   const [error, setError] = useState("");
 
   const [filingStatus, setFilingStatus] = useState("single");
+  const [stateCode, setStateCode] = useState("");
   const [dependents, setDependents] = useState(0);
   const [selfEmployment, setSelfEmployment] = useState("no");
   const [goal, setGoal] = useState("general awareness");
@@ -64,6 +68,7 @@ export default function Upload() {
     const form = new FormData();
     form.append("pdf", file);
     form.append("filingStatus", filingStatus);
+    form.append("state", stateCode);
     form.append("dependents", String(dependents));
     form.append("selfEmployment", selfEmployment);
     form.append("goal", goal);
@@ -148,7 +153,10 @@ export default function Upload() {
         <h2 className="font-heading text-lg font-semibold text-navy-900">A few quick questions</h2>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Filing status</label>
+          <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-700">
+            Filing status
+            <InfoTooltip label="filing status" testid="info-filing-status" text={GLOSSARY.filingStatus} />
+          </label>
           <select
             data-testid="intake-filing-status"
             value={filingStatus}
@@ -164,7 +172,33 @@ export default function Upload() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Number of dependents</label>
+          <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-700">
+            State of residence
+            <InfoTooltip label="state tax" testid="info-state" text={GLOSSARY.stateTax} />
+          </label>
+          <select
+            data-testid="intake-state"
+            value={stateCode}
+            onChange={(e) => setStateCode(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-transparent focus:ring-2 focus:ring-teal-600"
+          >
+            <option value="">Select your state (for combined federal + state)</option>
+            {STATES.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-500">
+            Used to estimate your state income tax alongside federal. Optional, but recommended.
+          </p>
+        </div>
+
+        <div>
+          <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-700">
+            Number of dependents
+            <InfoTooltip label="dependents" testid="info-dependents" text={GLOSSARY.dependents} />
+          </label>
           <input
             type="number"
             min={0}
@@ -176,8 +210,9 @@ export default function Upload() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-700">
             Do you have self-employment income?
+            <InfoTooltip label="self-employment" testid="info-self-employment" text={GLOSSARY.selfEmployment} />
           </label>
           <div className="flex gap-3">
             {["yes", "no"].map((v) => (
@@ -199,8 +234,9 @@ export default function Upload() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-700">
             Primary financial goal this year
+            <InfoTooltip label="financial goal" testid="info-goal" text={GLOSSARY.goal} />
           </label>
           <select
             data-testid="intake-goal"

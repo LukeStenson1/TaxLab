@@ -19,6 +19,8 @@ import {
 import api from "../lib/api";
 import Disclaimer from "../components/Disclaimer";
 import YearOverYear from "../components/YearOverYear";
+import InfoTooltip from "../components/InfoTooltip";
+import GLOSSARY from "../lib/glossary";
 import { fmtUSD, fmtPct } from "../lib/taxCalc";
 
 export default function Dashboard() {
@@ -100,6 +102,7 @@ export default function Dashboard() {
                   <h2 className="font-heading text-lg font-semibold text-navy-900">
                     Effective rate trend
                   </h2>
+                  <InfoTooltip label="effective rate" testid="info-trend" text={GLOSSARY.effectiveRate} />
                 </div>
                 <div className="h-64 w-full" data-testid="trend-chart">
                   <ResponsiveContainer width="100%" height="100%">

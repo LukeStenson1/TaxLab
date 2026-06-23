@@ -47,3 +47,14 @@ Gemini 2.5 Flash · own Gemini key · email/password auth only · real Stripe ·
 - P2: Downloadable/printable PDF report; share link
 - P2: Multi-year comparison enhancements; richer Schedule C/D/E breakdowns
 - P2: Webhook-driven billing confirmation hardening (currently polling + webhook both wired)
+
+## Iteration 4 (2026-06-23) — Site-wide info tooltips, updated 2025 data, federal+state
+- Synced from GitHub (user's deploy refactor: google-genai SDK, native Stripe, cents plans, Vercel CORS) before editing.
+- InfoTooltip component (hover/focus/tap, light+dark tones) + shared lib/glossary.js. Tooltips added across Landing sample insights, InsightCard categories + estimated impact, Upload intake labels, Analysis stat tiles + combined section, Scenario Simulator sliders + result rates, Dashboard trend, YoY metric rows.
+- Fixed outdated 2025 standard deduction to OBBBA figures: single $15,750 / MFJ $31,500 / MFS $15,750 / HoH $23,625 (was $15,000/$30,000/...). taxCalc.js upgraded to 2025 brackets + LTCG breakpoints.
+- State tax: new lib/stateTax.js (2025 simplified per-state rates, 9 no-tax states). Upload now collects State; backend stores rawFields.state + adds to prompt. Analysis shows Federal+State combined card; Simulator shows federal/state/combined breakdown; YoY adds State tax + Combined rate rows.
+- Verified: frontend compiles, backend boots, std deduction corrected, simulate() combined math checked, Landing renders with no JS errors. NOT yet E2E-tested on a live Gemini analysis (needs PDF upload) — code-verified only.
+
+## Backlog / Next
+- E2E test the full upload→analysis flow with a real PDF + state selected.
+- State tax is a simplified flat estimate; could upgrade to true per-state brackets/standard deductions later.

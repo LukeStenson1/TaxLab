@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Sliders, PiggyBank, TrendingUp } from "lucide-react";
 import { simulate, fmtUSD, fmtPct } from "../lib/taxCalc";
 import InfoTooltip from "./InfoTooltip";
+import GLOSSARY from "../lib/glossary";
 
 function SliderRow({ label, value, onChange, max, step, testid, hint, info }) {
   return (
@@ -198,6 +199,7 @@ export default function ScenarioSimulator({ rawFields }) {
         <div className="flex flex-col justify-center rounded-2xl bg-navy-900 p-8 text-white">
           <p className="text-sm font-medium text-slate-300">
             {isSaving ? "Estimated tax savings" : "Estimated additional tax"}
+            <span className="ml-1 text-xs text-slate-400">(federal + state)</span>
           </p>
           <p
             data-testid="sim-result"
@@ -210,41 +212,48 @@ export default function ScenarioSimulator({ rawFields }) {
           </p>
           <div className="mt-6 space-y-2 border-t border-white/10 pt-4 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-400">Current est. tax</span>
-              <span className="font-medium">{fmtUSD(result.baseTax)}</span>
+              <span className="text-slate-400">Federal tax</span>
+              <span className="font-medium">
+                {fmtUSD(result.baseFederalTax)} <span className="text-slate-500">→</span>{" "}
+                {fmtUSD(result.newFederalTax)}
+              </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">New est. tax</span>
-              <span className="font-medium">{fmtUSD(result.newTax)}</span>
+              <span className="flex items-center gap-1.5 text-slate-400">
+                State tax (est.)
+                <InfoTooltip tone="light" label="state tax" testid="info-sim-state" text={GLOSSARY.stateTax} />
+              </span>
+              <span className="font-medium">
+                {fmtUSD(result.baseStateTax)} <span className="text-slate-500">→</span>{" "}
+                {fmtUSD(result.newStateTax)}
+              </span>
+            </div>
+            <div className="flex justify-between border-t border-white/10 pt-2">
+              <span className="font-medium text-slate-200">Combined tax</span>
+              <span className="font-semibold">
+                {fmtUSD(result.baseTax)} <span className="text-slate-500">→</span> {fmtUSD(result.newTax)}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="flex items-center gap-1.5 text-slate-400">
                 New marginal rate
-                <InfoTooltip
-                  tone="light"
-                  label="marginal rate"
-                  testid="info-marginal-rate"
-                  text="The tax rate on your NEXT dollar of income — your top tax bracket. It's different from your effective (average) rate, which spreads across all your income."
-                />
+                <InfoTooltip tone="light" label="marginal rate" testid="info-marginal-rate" text={GLOSSARY.marginalRate} />
               </span>
               <span className="font-medium">{fmtPct(result.newMarginal)}</span>
             </div>
             <div className="flex justify-between">
               <span className="flex items-center gap-1.5 text-slate-400">
                 Cap-gains / dividend rate
-                <InfoTooltip
-                  tone="light"
-                  label="capital gains rate"
-                  testid="info-ltcg-rate"
-                  text="The long-term rate applied to your capital gains and qualified dividends — 0%, 15%, or 20% depending on your taxable income."
-                />
+                <InfoTooltip tone="light" label="capital gains rate" testid="info-ltcg-rate" text={GLOSSARY.capitalGainsRate} />
               </span>
               <span className="font-medium">{fmtPct(result.prefRate)}</span>
             </div>
           </div>
           <p className="mt-4 text-xs text-slate-400">
-            Calculated live in your browser using 2024 federal brackets. Capital gains &
-            qualified dividends use long-term rates. Estimates only.
+            {result.stateCode
+              ? `Federal uses 2025 brackets; state is a simplified estimate (~${fmtPct(result.stateRate)}). `
+              : "Federal uses 2025 brackets. Add your state on upload for a state estimate. "}
+            Capital gains & qualified dividends use long-term federal rates. Estimates only.
           </p>
         </div>
       </div>
