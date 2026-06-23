@@ -304,37 +304,28 @@ def _extract_json(text: str) -> dict:
 
 
 async def run_gemini_analysis(pdf_path: str, context: dict) -> dict:
-    if not GEMINI_API_KEY:
+    if not gemini_client:
         raise HTTPException(status_code=500, detail="Gemini API key is not configured.")
-
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-pro",
-        system_instruction=ANALYSIS_SYSTEM_PROMPT,
-    )
 
     with open(pdf_path, "rb") as f:
         pdf_bytes = f.read()
 
     import base64
     pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
-
     prompt = build_analysis_prompt(context)
 
     last_err = None
     for attempt in range(3):
         try:
             response = await asyncio.to_thread(
-                model.generate_content,
-                [
-                    {
-                        "inline_data": {
-                            "mime_type": "application/pdf",
-                            "data": pdf_b64,
-                        }
-                    },
-                    prompt,
+                gemini_client.models.generate_content,
+                model="gemini-2.5-flash",
+                contents=[
+                    types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+                    types.Part.from_text(text=prompt),
                 ],
-                generation_config=genai.GenerationConfig(
+                config=types.GenerateContentConfig(
+                    system_instruction=ANALYSIS_SYSTEM_PROMPT,
                     temperature=0.1,
                     max_output_tokens=4096,
                 ),
