@@ -312,49 +312,40 @@ async def run_gemini_analysis(pdf_path: str, context: dict) -> dict:
         system_instruction=ANALYSIS_SYSTEM_PROMPT,
     )
 
-    # Upload PDF to Gemini Files API
-    uploaded_file = None
-    last_err = None
+    with open(pdf_path, "rb") as f:
+        pdf_bytes = f.read()
 
+    import base64
+    pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+
+    prompt = build_analysis_prompt(context)
+
+    last_err = None
     for attempt in range(3):
         try:
-            # Upload the file
-            uploaded_file = genai.upload_file(
-                path=pdf_path,
-                mime_type="application/pdf",
-            )
-
-            prompt = build_analysis_prompt(context)
             response = await asyncio.to_thread(
                 model.generate_content,
-                [uploaded_file, prompt],
+                [
+                    {
+                        "inline_data": {
+                            "mime_type": "application/pdf",
+                            "data": pdf_b64,
+                        }
+                    },
+                    prompt,
+                ],
                 generation_config=genai.GenerationConfig(
                     temperature=0.1,
                     max_output_tokens=4096,
                 ),
             )
-
             text = response.text
-            result = _extract_json(text)
-
-            # Clean up uploaded file
-            try:
-                genai.delete_file(uploaded_file.name)
-            except Exception:
-                pass
-
-            return result
+            return _extract_json(text)
 
         except Exception as e:
             last_err = e
             transient = any(k in str(e).lower() for k in ["503", "unavailable", "overloaded", "429", "rate"])
             logger.warning("Gemini attempt %s failed: %s", attempt + 1, e)
-            if uploaded_file:
-                try:
-                    genai.delete_file(uploaded_file.name)
-                except Exception:
-                    pass
-                uploaded_file = None
             if transient and attempt < 2:
                 await asyncio.sleep(2 * (attempt + 1))
                 continue
@@ -365,7 +356,6 @@ async def run_gemini_analysis(pdf_path: str, context: dict) -> dict:
         status_code=503,
         detail="The analyzer is temporarily busy. Please try again in a moment."
     )
-
 
 @api.post("/returns/analyze")
 async def analyze_return(
