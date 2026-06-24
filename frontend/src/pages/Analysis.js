@@ -266,7 +266,13 @@ export default function Analysis() {
         <p className="mb-5 mt-1 text-slate-600">
           Explore how common moves could change your estimated federal tax.
         </p>
-        <ScenarioSimulator rawFields={rf} />
+        <ScenarioSimulator 
+          rawFields={{
+            ...ret.rawFields,
+            state: ret.context?.state || "",
+            filingStatus: ret.context?.filingStatus || ret.rawFields?.filingStatus || "single",
+          }} 
+        />
 
         {/* Sources & methodology */}
         {ret.sources && ret.sources.length > 0 && (
