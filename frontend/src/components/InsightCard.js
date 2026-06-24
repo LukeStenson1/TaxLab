@@ -144,8 +144,15 @@ export default function InsightCard({ insight, rank, locked = false }) {
         <div className="flex flex-1 flex-col gap-3 p-6">
           {/* Module label + severity */}
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-[0.15em] text-teal-700">
+            <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.15em] text-teal-700">
               {MODULE_LABELS[insight.module] || "Insight"}
+              {MODULE_INFO[insight.module] && (
+                <InfoTooltip
+                  label={MODULE_LABELS[insight.module]}
+                  testid={`info-insight-${insight.module}`}
+                  text={MODULE_INFO[insight.module]}
+                />
+              )}
             </span>
             <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${SEVERITY_STYLES[severity] || SEVERITY_STYLES.medium}`}>
               {severity}
