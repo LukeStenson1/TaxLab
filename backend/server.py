@@ -520,6 +520,7 @@ def build_report_pdf(ret: dict) -> bytes:
     pdf = FPDF(format="A4")
     pdf.set_auto_page_break(auto=True, margin=18)
     pdf.add_page()
+    pdf.set_margins(15, 15, 15)
     W = pdf.w - 2 * pdf.l_margin
 
     pdf.set_fill_color(*NAVY)
