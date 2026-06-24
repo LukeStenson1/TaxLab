@@ -5,13 +5,19 @@ import api, { formatApiErrorDetail } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
 const PLAN_FEATURES = {
-  pro: [
+  pro_monthly: [
     "Unlimited tax return analyses",
     "AI insights ranked by dollar impact",
-    "Scenario simulator with investments",
+    "Full scenario simulator (all sliders)",
     "Downloadable PDF reports",
     "Year-over-year dashboard",
-    "Email support",
+    "Cancel anytime",
+  ],
+  pro_annual: [
+    "Everything in Pro Monthly",
+    "2 months free vs. monthly",
+    "Best value for year-round planning",
+    "Priority email support",
   ],
   lifetime: [
     "Everything in Pro",
@@ -19,6 +25,12 @@ const PLAN_FEATURES = {
     "All future updates included",
     "Priority support",
   ],
+};
+
+const PLAN_SUFFIX = {
+  pro_monthly: "/ month",
+  pro_annual: "/ year",
+  lifetime: "one-time",
 };
 
 export default function Settings() {
@@ -109,18 +121,15 @@ export default function Settings() {
           </div>
 
           {!isPaid && (
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="mt-5 grid gap-4 sm:grid-cols-3">
               {plans.map((p) => (
                 <div key={p.id} className="flex flex-col rounded-xl border border-slate-200 p-5">
                   <p className="font-heading text-lg font-semibold text-navy-900">{p.name}</p>
                   <p className="font-heading mt-1 text-2xl font-bold text-navy-900">
                     ${p.amount.toFixed(0)}
-                    {p.id === "pro" && (
-                      <span className="ml-1 text-sm font-medium text-slate-500">/ month</span>
-                    )}
-                    {p.id === "lifetime" && (
-                      <span className="ml-1 text-sm font-medium text-slate-500">one-time</span>
-                    )}
+                    <span className="ml-1 text-sm font-medium text-slate-500">
+                      {PLAN_SUFFIX[p.id] || ""}
+                    </span>
                   </p>
                   <ul
                     data-testid={`plan-features-${p.id}`}

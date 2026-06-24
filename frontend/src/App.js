@@ -14,6 +14,9 @@ import CheckIn from "./pages/CheckIn";
 import Learn from "./pages/Learn";
 import LearnApp from "./pages/LearnApp";
 import AdminLearning from "./pages/AdminLearning";
+import AdminHome from "./pages/AdminHome";
+import AdminUsers from "./pages/AdminUsers";
+import AdminOrgs from "./pages/AdminOrgs";
 
 function Loading() {
   return (
@@ -50,7 +53,10 @@ export default function App() {
           <Route path="/app/upload" element={<Protected><Upload /></Protected>} />
           <Route path="/app/checkin" element={<Protected><CheckIn /></Protected>} />
           <Route path="/app/learn" element={<Protected><LearnApp /></Protected>} />
+          <Route path="/app/admin" element={<Protected><AdminHome /></Protected>} />
           <Route path="/app/admin/learning" element={<Protected><AdminLearning /></Protected>} />
+          <Route path="/app/admin/users" element={<Protected><AdminUsers /></Protected>} />
+          <Route path="/app/admin/orgs" element={<Protected><AdminOrgs /></Protected>} />
           <Route path="/app/analysis/:id" element={<Protected><Analysis /></Protected>} />
           <Route path="/app/settings" element={<Protected><Settings /></Protected>} />
           <Route path="/billing/success" element={<Protected><BillingSuccess /></Protected>} />

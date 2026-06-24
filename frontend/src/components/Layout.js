@@ -16,7 +16,7 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
 
   const items = user?.isAdmin
-    ? [...navItems, { to: "/app/admin/learning", label: "Admin", icon: Shield, testid: "nav-admin" }]
+    ? [...navItems, { to: "/app/admin", label: "Admin", icon: Shield, testid: "nav-admin" }]
     : navItems;
 
   const handleLogout = async () => {

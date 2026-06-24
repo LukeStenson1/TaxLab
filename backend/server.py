@@ -66,10 +66,11 @@ gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 if STRIPE_API_KEY:
     stripe.api_key = STRIPE_API_KEY
 
-# Subscription plans
+# Subscription plans (amounts in cents)
 PLANS = {
-    "pro": {"amount": 2900, "name": "Pro", "label": "pro"},           # cents
-    "lifetime": {"amount": 19900, "name": "Lifetime", "label": "lifetime"},
+    "pro_monthly": {"amount": 2000, "name": "Pro Monthly", "label": "pro", "mode": "subscription", "interval": "month"},
+    "pro_annual": {"amount": 20000, "name": "Pro Annual", "label": "pro", "mode": "subscription", "interval": "year"},
+    "lifetime": {"amount": 19900, "name": "Lifetime", "label": "lifetime", "mode": "payment", "interval": None},
 }
 
 app = FastAPI(title="TaxLens API")
@@ -121,6 +122,8 @@ def serialize_user(user: dict) -> dict:
         "billingStatus": "admin" if admin else user.get("billing_status", "free"),
         "plan": user.get("plan"),
         "isAdmin": admin,
+        "orgId": str(user["org_id"]) if user.get("org_id") else None,
+        "orgRole": user.get("org_role"),
     }
 
 
@@ -173,6 +176,8 @@ class ChangePasswordRequest(BaseModel):
 class CheckoutRequest(BaseModel):
     planId: str
     originUrl: str
+    seats: int = 1
+    orgId: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -632,7 +637,43 @@ async def download_return_pdf(return_id: str, user: dict = Depends(get_current_u
 # ---------------------------------------------------------------------------
 @api.get("/billing/plans")
 async def billing_plans():
-    return {"plans": [{"id": k, "name": v["name"], "amount": v["amount"] / 100} for k, v in PLANS.items()]}
+    return {
+        "plans": [
+            {
+                "id": k,
+                "name": v["name"],
+                "amount": v["amount"] / 100,
+                "mode": v["mode"],
+                "interval": v["interval"],
+            }
+            for k, v in PLANS.items()
+        ]
+    }
+
+
+async def _activate_from_txn(txn: dict, session: dict):
+    """Grant access after a paid checkout — individual or whole org (all seats)."""
+    plan = PLANS.get(txn.get("plan_id"), {})
+    label = plan.get("label", "pro")
+    sub_id = session.get("subscription")
+    if txn.get("org_id"):
+        org_id = txn["org_id"]
+        await db.organizations.update_one(
+            {"_id": ObjectId(org_id)},
+            {"$set": {
+                "billing_status": label,
+                "plan": txn.get("plan_id"),
+                "seats": txn.get("seats", 1),
+                "stripe_subscription_id": sub_id,
+            }},
+        )
+        # Every member + owner of the org inherits the plan.
+        await db.users.update_many({"org_id": org_id}, {"$set": {"billing_status": label, "plan": "org"}})
+    else:
+        await db.users.update_one(
+            {"_id": ObjectId(txn["user_id"])},
+            {"$set": {"billing_status": label, "plan": txn.get("plan_id"), "stripe_subscription_id": sub_id}},
+        )
 
 
 @api.post("/billing/checkout")
@@ -643,29 +684,41 @@ async def create_checkout(body: CheckoutRequest, user: dict = Depends(get_curren
         raise HTTPException(status_code=500, detail="Stripe is not configured.")
 
     plan = PLANS[body.planId]
+    seats = max(1, body.seats)
     origin = body.originUrl.rstrip("/")
     success_url = f"{origin}/billing/success?session_id={{CHECKOUT_SESSION_ID}}"
-    cancel_url = f"{origin}/settings"
+    cancel_url = f"{origin}/app/settings"
+
+    # If buying for an org, the caller must own it (or be admin).
+    if body.orgId:
+        org = await db.organizations.find_one({"_id": ObjectId(body.orgId)})
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        if str(org.get("owner_user_id")) != str(user["_id"]) and not is_admin_user(user):
+            raise HTTPException(status_code=403, detail="Only the org owner can buy seats.")
+
+    price_data = {
+        "currency": "usd",
+        "product_data": {"name": f"TaxLens {plan['name']}"},
+        "unit_amount": plan["amount"],
+    }
+    if plan["mode"] == "subscription":
+        price_data["recurring"] = {"interval": plan["interval"]}
 
     try:
         session = await asyncio.to_thread(
             stripe.checkout.Session.create,
             payment_method_types=["card"],
-            line_items=[{
-                "price_data": {
-                    "currency": "usd",
-                    "product_data": {"name": f"TaxLens {plan['name']}"},
-                    "unit_amount": plan["amount"],
-                },
-                "quantity": 1,
-            }],
-            mode="payment",
+            line_items=[{"price_data": price_data, "quantity": seats}],
+            mode=plan["mode"],
             success_url=success_url,
             cancel_url=cancel_url,
             metadata={
                 "user_id": str(user["_id"]),
                 "email": user["email"],
                 "plan_id": body.planId,
+                "org_id": body.orgId or "",
+                "seats": str(seats),
             },
         )
     except stripe.error.StripeError as e:
@@ -676,7 +729,9 @@ async def create_checkout(body: CheckoutRequest, user: dict = Depends(get_curren
         "user_id": str(user["_id"]),
         "email": user["email"],
         "plan_id": body.planId,
-        "amount": plan["amount"] / 100,
+        "org_id": body.orgId or None,
+        "seats": seats,
+        "amount": plan["amount"] * seats / 100,
         "currency": "usd",
         "payment_status": "initiated",
         "status": "initiated",
@@ -697,14 +752,11 @@ async def checkout_status(session_id: str):
         raise HTTPException(status_code=400, detail=str(e))
 
     payment_status = session.get("payment_status", "unpaid")
+    # Subscriptions can report 'paid' or 'no_payment_required'.
+    is_paid = payment_status in ("paid", "no_payment_required")
 
-    if payment_status == "paid" and txn.get("payment_status") != "paid":
-        plan_id = txn.get("plan_id")
-        plan = PLANS.get(plan_id, {})
-        await db.users.update_one(
-            {"_id": ObjectId(txn["user_id"])},
-            {"$set": {"billing_status": plan.get("label", "pro"), "plan": plan_id}},
-        )
+    if is_paid and txn.get("payment_status") != "paid":
+        await _activate_from_txn(txn, session)
         await db.payment_transactions.update_one(
             {"session_id": session_id},
             {"$set": {"payment_status": "paid", "status": session.get("status")}},
@@ -734,22 +786,231 @@ async def stripe_webhook(request: Request):
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid payload")
 
-    if event.get("type") == "checkout.session.completed":
+    etype = event.get("type")
+
+    if etype == "checkout.session.completed":
         session = event["data"]["object"]
-        if session.get("payment_status") == "paid":
+        if session.get("payment_status") in ("paid", "no_payment_required"):
             txn = await db.payment_transactions.find_one({"session_id": session["id"]})
             if txn and txn.get("payment_status") != "paid":
-                plan_id = txn.get("plan_id")
-                plan = PLANS.get(plan_id, {})
-                await db.users.update_one(
-                    {"_id": ObjectId(txn["user_id"])},
-                    {"$set": {"billing_status": plan.get("label", "pro"), "plan": plan_id}},
-                )
+                await _activate_from_txn(txn, session)
                 await db.payment_transactions.update_one(
                     {"session_id": session["id"]},
                     {"$set": {"payment_status": "paid", "status": "complete"}},
                 )
+
+    elif etype == "customer.subscription.deleted":
+        sub = event["data"]["object"]
+        sub_id = sub.get("id")
+        # Downgrade the individual or the whole org tied to this subscription.
+        org = await db.organizations.find_one({"stripe_subscription_id": sub_id})
+        if org:
+            await db.organizations.update_one({"_id": org["_id"]}, {"$set": {"billing_status": "free", "plan": None}})
+            await db.users.update_many({"org_id": str(org["_id"])}, {"$set": {"billing_status": "free", "plan": None}})
+        else:
+            await db.users.update_one({"stripe_subscription_id": sub_id}, {"$set": {"billing_status": "free", "plan": None}})
+
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Organizations (business accounts with seats) — admin/owner managed
+# ---------------------------------------------------------------------------
+class OrgIn(BaseModel):
+    name: str
+    seats: int = Field(default=1, ge=1)
+    ownerEmail: Optional[EmailStr] = None
+
+
+class OrgUpdate(BaseModel):
+    name: Optional[str] = None
+    seats: Optional[int] = Field(default=None, ge=1)
+
+
+class OrgMemberIn(BaseModel):
+    email: EmailStr
+
+
+class AdminUserUpdate(BaseModel):
+    billingStatus: Optional[str] = None
+    orgId: Optional[str] = None
+
+
+def serialize_org(o: dict, members=None) -> dict:
+    return {
+        "id": str(o["_id"]),
+        "name": o.get("name"),
+        "seats": o.get("seats", 1),
+        "billingStatus": o.get("billing_status", "free"),
+        "plan": o.get("plan"),
+        "ownerUserId": str(o["owner_user_id"]) if o.get("owner_user_id") else None,
+        "ownerEmail": o.get("owner_email"),
+        "memberCount": o.get("member_count"),
+        "members": members,
+    }
+
+
+def serialize_admin_user(u: dict) -> dict:
+    return {
+        "id": str(u["_id"]),
+        "email": u["email"],
+        "billingStatus": "admin" if is_admin_user(u) else u.get("billing_status", "free"),
+        "plan": u.get("plan"),
+        "isAdmin": is_admin_user(u),
+        "orgId": str(u["org_id"]) if u.get("org_id") else None,
+        "orgRole": u.get("org_role"),
+    }
+
+
+async def _org_or_404(org_id: str) -> dict:
+    org = await db.organizations.find_one({"_id": ObjectId(org_id)})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return org
+
+
+@api.get("/orgs")
+async def list_orgs(admin: dict = Depends(require_admin)):
+    orgs = await db.organizations.find({}).sort("name", 1).to_list(length=500)
+    out = []
+    for o in orgs:
+        o["member_count"] = await db.users.count_documents({"org_id": str(o["_id"])})
+        out.append(serialize_org(o))
+    return {"orgs": out}
+
+
+@api.post("/orgs")
+async def create_org(body: OrgIn, admin: dict = Depends(require_admin)):
+    doc = {
+        "name": body.name.strip(),
+        "seats": body.seats,
+        "billing_status": "free",
+        "plan": None,
+        "owner_user_id": None,
+        "owner_email": None,
+        "stripe_subscription_id": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if body.ownerEmail:
+        owner = await db.users.find_one({"email": str(body.ownerEmail).lower()})
+        if not owner:
+            raise HTTPException(status_code=404, detail="Owner must have a TaxLens account first.")
+        if owner.get("org_id"):
+            raise HTTPException(status_code=400, detail="That user already belongs to an organization.")
+        doc["owner_user_id"] = owner["_id"]
+        doc["owner_email"] = owner["email"]
+    result = await db.organizations.insert_one(doc)
+    if doc["owner_user_id"]:
+        await db.users.update_one(
+            {"_id": doc["owner_user_id"]},
+            {"$set": {"org_id": str(result.inserted_id), "org_role": "owner"}},
+        )
+    doc["_id"] = result.inserted_id
+    doc["member_count"] = 1 if doc["owner_user_id"] else 0
+    return {"org": serialize_org(doc)}
+
+
+@api.get("/orgs/{org_id}")
+async def get_org(org_id: str, admin: dict = Depends(require_admin)):
+    org = await _org_or_404(org_id)
+    members = await db.users.find({"org_id": org_id}).to_list(length=500)
+    org["member_count"] = len(members)
+    return {"org": serialize_org(org, members=[serialize_admin_user(m) for m in members])}
+
+
+@api.patch("/orgs/{org_id}")
+async def update_org(org_id: str, body: OrgUpdate, admin: dict = Depends(require_admin)):
+    org = await _org_or_404(org_id)
+    update = {}
+    if body.name is not None:
+        update["name"] = body.name.strip()
+    if body.seats is not None:
+        count = await db.users.count_documents({"org_id": org_id})
+        if body.seats < count:
+            raise HTTPException(status_code=400, detail=f"Org already has {count} members; seats can't be lower.")
+        update["seats"] = body.seats
+    if update:
+        await db.organizations.update_one({"_id": org["_id"]}, {"$set": update})
+    org = await _org_or_404(org_id)
+    org["member_count"] = await db.users.count_documents({"org_id": org_id})
+    return {"org": serialize_org(org)}
+
+
+@api.delete("/orgs/{org_id}")
+async def delete_org(org_id: str, admin: dict = Depends(require_admin)):
+    await db.users.update_many(
+        {"org_id": org_id},
+        {"$set": {"org_id": None, "org_role": None, "billing_status": "free", "plan": None}},
+    )
+    await db.organizations.delete_one({"_id": ObjectId(org_id)})
+    return {"ok": True}
+
+
+@api.post("/orgs/{org_id}/members")
+async def add_member(org_id: str, body: OrgMemberIn, admin: dict = Depends(require_admin)):
+    org = await _org_or_404(org_id)
+    count = await db.users.count_documents({"org_id": org_id})
+    if count >= org.get("seats", 1):
+        raise HTTPException(status_code=400, detail="No seats left. Increase seats first.")
+    target = await db.users.find_one({"email": str(body.email).lower()})
+    if not target:
+        raise HTTPException(status_code=404, detail="That person needs a TaxLens account first.")
+    if target.get("org_id"):
+        raise HTTPException(status_code=400, detail="That user already belongs to an organization.")
+    update = {"org_id": org_id, "org_role": "member"}
+    if org.get("billing_status", "free") != "free":
+        update["billing_status"] = org["billing_status"]
+        update["plan"] = "org"
+    await db.users.update_one({"_id": target["_id"]}, {"$set": update})
+    members = await db.users.find({"org_id": org_id}).to_list(length=500)
+    org["member_count"] = len(members)
+    return {"org": serialize_org(org, members=[serialize_admin_user(m) for m in members])}
+
+
+@api.delete("/orgs/{org_id}/members/{user_id}")
+async def remove_member(org_id: str, user_id: str, admin: dict = Depends(require_admin)):
+    await db.users.update_one(
+        {"_id": ObjectId(user_id), "org_id": org_id},
+        {"$set": {"org_id": None, "org_role": None, "billing_status": "free", "plan": None}},
+    )
+    members = await db.users.find({"org_id": org_id}).to_list(length=500)
+    org = await _org_or_404(org_id)
+    org["member_count"] = len(members)
+    return {"org": serialize_org(org, members=[serialize_admin_user(m) for m in members])}
+
+
+# ---------------------------------------------------------------------------
+# Admin: user management
+# ---------------------------------------------------------------------------
+@api.get("/admin/users")
+async def admin_list_users(admin: dict = Depends(require_admin)):
+    users = await db.users.find({}).sort("created_at", -1).to_list(length=1000)
+    orgs = {str(o["_id"]): o.get("name") for o in await db.organizations.find({}).to_list(length=500)}
+    out = []
+    for u in users:
+        su = serialize_admin_user(u)
+        su["orgName"] = orgs.get(su["orgId"]) if su["orgId"] else None
+        out.append(su)
+    return {"users": out}
+
+
+@api.patch("/admin/users/{user_id}")
+async def admin_update_user(user_id: str, body: AdminUserUpdate, admin: dict = Depends(require_admin)):
+    update = {}
+    if body.billingStatus is not None:
+        if body.billingStatus not in ("free", "pro", "lifetime"):
+            raise HTTPException(status_code=400, detail="Invalid billing status.")
+        update["billing_status"] = body.billingStatus
+    if body.orgId is not None:
+        update["org_id"] = body.orgId or None
+        update["org_role"] = "member" if body.orgId else None
+    if not update:
+        raise HTTPException(status_code=400, detail="Nothing to update.")
+    result = await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    u = await db.users.find_one({"_id": ObjectId(user_id)})
+    return {"user": serialize_admin_user(u)}
 
 
 @api.get("/")
