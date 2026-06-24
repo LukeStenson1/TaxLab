@@ -51,8 +51,15 @@ function InsightModal({ insight, onClose }) {
         {/* Header */}
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-bold uppercase tracking-[0.15em] text-teal-700">
+            <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.15em] text-teal-700">
               {MODULE_LABELS[insight.module] || "Insight"}
+              {MODULE_INFO[insight.module] && (
+                <InfoTooltip
+                  label={MODULE_LABELS[insight.module]}
+                  testid={`info-insight-${insight.module}`}
+                  text={MODULE_INFO[insight.module]}
+                />
+              )}
             </span>
             <h2 className="text-xl font-semibold text-slate-900">{insight.title}</h2>
           </div>
