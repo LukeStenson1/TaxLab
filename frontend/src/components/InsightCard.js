@@ -41,24 +41,23 @@ function InsightModal({ insight, onClose }) {
 
   return createPortal(
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
-      {/* Modal — centered on desktop, bottom sheet feel on mobile */}
       <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white shadow-2xl sm:inset-auto sm:left-1/2 sm:top-1/2 sm:w-[540px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl">
-        {/* Header */}
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
           <div className="flex flex-col gap-1">
             <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.15em] text-teal-700">
               {MODULE_LABELS[insight.module] || "Insight"}
               {MODULE_INFO[insight.module] && (
-                <InfoTooltip
-                  label={MODULE_LABELS[insight.module]}
-                  testid={`info-insight-${insight.module}`}
-                  text={MODULE_INFO[insight.module]}
-                />
+                <span onClick={(e) => e.stopPropagation()}>
+                  <InfoTooltip
+                    label={MODULE_LABELS[insight.module]}
+                    testid={`info-modal-${insight.module}`}
+                    text={MODULE_INFO[insight.module]}
+                  />
+                </span>
               )}
             </span>
             <h2 className="text-xl font-semibold text-slate-900">{insight.title}</h2>
@@ -71,9 +70,7 @@ function InsightModal({ insight, onClose }) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-5">
-          {/* Dollar impact + severity */}
           <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-emerald-600" />
             <span className="text-2xl font-bold text-emerald-600">
@@ -85,7 +82,6 @@ function InsightModal({ insight, onClose }) {
             </span>
           </div>
 
-          {/* Explanation */}
           <div>
             <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
               What this means for you
@@ -93,7 +89,6 @@ function InsightModal({ insight, onClose }) {
             <p className="text-sm leading-relaxed text-slate-700">{insight.explanation}</p>
           </div>
 
-          {/* Glossary background */}
           {moduleInfo && (
             <div className="rounded-xl bg-slate-50 px-4 py-4">
               <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -103,7 +98,6 @@ function InsightModal({ insight, onClose }) {
             </div>
           )}
 
-          {/* Ask your CPA */}
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-4">
             <div className="flex gap-2">
               <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
@@ -117,7 +111,6 @@ function InsightModal({ insight, onClose }) {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="border-t border-slate-100 px-6 py-4">
           <p className="text-center text-xs text-slate-400">
             Educational purposes only — not tax or financial advice.
@@ -142,16 +135,17 @@ export default function InsightCard({ insight, rank, locked = false }) {
         className={`group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${!locked ? "cursor-pointer" : ""}`}
       >
         <div className="flex flex-1 flex-col gap-3 p-6">
-          {/* Module label + severity */}
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.15em] text-teal-700">
               {MODULE_LABELS[insight.module] || "Insight"}
               {MODULE_INFO[insight.module] && (
-                <InfoTooltip
-                  label={MODULE_LABELS[insight.module]}
-                  testid={`info-insight-${insight.module}`}
-                  text={MODULE_INFO[insight.module]}
-                />
+                <span onClick={(e) => e.stopPropagation()}>
+                  <InfoTooltip
+                    label={MODULE_LABELS[insight.module]}
+                    testid={`info-insight-${insight.module}`}
+                    text={MODULE_INFO[insight.module]}
+                  />
+                </span>
               )}
             </span>
             <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${SEVERITY_STYLES[severity] || SEVERITY_STYLES.medium}`}>
@@ -159,7 +153,6 @@ export default function InsightCard({ insight, rank, locked = false }) {
             </span>
           </div>
 
-          {/* Title + Top badge */}
           <div className="flex items-start justify-between gap-3">
             <h3 className="font-heading text-lg font-semibold leading-snug text-navy-900">
               {insight.title}
