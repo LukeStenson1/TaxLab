@@ -90,3 +90,18 @@ Gemini 2.5 Flash · own Gemini key · email/password auth only · real Stripe ·
 
 ## REMINDER
 - GitHub remote is disconnected in this workspace; user must click "Save to Github" to push. This workspace == latest (contains their deploy refactor + all iterations).
+
+## Iteration 7 (2026-06-24) — Phase 2: Orgs + Stripe subscriptions + user mgmt
+- Pricing set: Pro Monthly $20, Pro Annual $200, Lifetime $199 one-time.
+- Stripe switched to RECURRING subscriptions (native SDK, mode=subscription w/ recurring price_data + seats quantity). _activate_from_txn grants individual OR whole-org access; webhook handles checkout.session.completed + customer.subscription.deleted (downgrade). NO emergentintegrations.
+- Organizations (business accounts w/ seats): /api/orgs CRUD + members add/remove (seat-enforced) + billing inheritance for members. One subscription covers all seats.
+- Admin user management: GET /api/admin/users, PATCH (grant free/pro/lifetime, assign org).
+- Admin UI: /app/admin hub → Learning / Users / Organizations pages. Admin nav points to /app/admin.
+- Settings shows 3 plan cards (monthly/annual/lifetime) w/ features.
+- Testing agent: 15/17 PASS. Fixed reported bug: free-user Settings now seeds DEFAULT_PLANS into initial state + isPaid only true for known paid statuses (pro/lifetime/admin) — deterministic, no race. Learning-section testid 'miss' was a hydration-timing false alarm (cards render).
+- Stripe checkout cannot COMPLETE in preview (placeholder key sk_test_emergent only works via emergentintegrations, not native SDK); works on Render with real key. Same as prior one-time flow.
+
+## Next / Backlog
+- Optional: re-run testing agent to confirm Settings plan-cards fix; clean up test-polluted orgs/users in preview DB.
+- Org owner self-service (currently admin-managed); subscription management/cancel UI; proration on seat changes.
+- Set ADMIN_EMAILS + real Stripe live keys + STRIPE_WEBHOOK_SECRET on Render; add webhook endpoint in Stripe dashboard.

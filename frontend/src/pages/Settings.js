@@ -33,10 +33,17 @@ const PLAN_SUFFIX = {
   lifetime: "one-time",
 };
 
+// Fallback so the upgrade cards always render even if the live fetch is slow/fails.
+const DEFAULT_PLANS = [
+  { id: "pro_monthly", name: "Pro Monthly", amount: 20 },
+  { id: "pro_annual", name: "Pro Annual", amount: 200 },
+  { id: "lifetime", name: "Lifetime", amount: 199 },
+];
+
 export default function Settings() {
   const { user, refresh, logout } = useAuth();
   const navigate = useNavigate();
-  const [plans, setPlans] = useState([]);
+  const [plans, setPlans] = useState(DEFAULT_PLANS);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [pwMsg, setPwMsg] = useState(null);
@@ -44,7 +51,12 @@ export default function Settings() {
   const [checkoutLoading, setCheckoutLoading] = useState("");
 
   useEffect(() => {
-    api.get("/billing/plans").then(({ data }) => setPlans(data.plans || []));
+    api
+      .get("/billing/plans")
+      .then(({ data }) => {
+        if (data.plans && data.plans.length) setPlans(data.plans);
+      })
+      .catch(() => {});
     refresh();
   }, []);
 
@@ -84,7 +96,7 @@ export default function Settings() {
   };
 
   const billingStatus = user?.billingStatus || "free";
-  const isPaid = billingStatus !== "free";
+  const isPaid = ["pro", "lifetime", "admin"].includes(billingStatus);
 
   return (
     <div className="px-6 py-10">
