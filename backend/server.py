@@ -575,7 +575,7 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(*GREEN)
         sign = "+" if impact >= 0 else "-"
-        pdf.cell(W * 0.28, 6, _clean(f"{sign}{_usd(abs(impact))}"), align="R")
+        pdf.cell(60, 6, _clean(f"{sign}{_usd(abs(impact))}"), align="R")
         pdf.set_xy(pdf.l_margin, title_y)
 
         pdf.set_font("Helvetica", "", 10)
