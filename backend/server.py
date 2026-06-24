@@ -569,7 +569,7 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.set_draw_color(*LIGHT)
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(*NAVY)
-        pdf.multi_cell(W * 0.72, 6, _clean(f"{idx + 1}. {ins.get('title', 'Insight')}"))
+        pdf.multi_cell(W - 60, 6, _clean(f"{idx + 1}. {ins.get('title', 'Insight')}"))
         title_y = pdf.get_y()
         pdf.set_xy(pdf.l_margin + W * 0.72, title_y - 6)
         pdf.set_font("Helvetica", "B", 12)
