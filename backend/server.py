@@ -1077,6 +1077,17 @@ async def create_learning(body: LearningSectionIn, admin: dict = Depends(require
     return {"section": serialize_section(doc)}
 
 
+@api.post("/learning/reorder")
+async def reorder_learning(body: dict, admin: dict = Depends(require_admin)):
+    ids = body.get("ids", [])
+    for i, sid in enumerate(ids):
+        try:
+            await db.learning_sections.update_one({"_id": ObjectId(sid)}, {"$set": {"order": i}})
+        except Exception:
+            continue
+    return {"ok": True}
+
+
 @api.put("/learning/{section_id}")
 async def update_learning(section_id: str, body: LearningSectionIn, admin: dict = Depends(require_admin)):
     update = {"title": body.title, "category": body.category, "body": body.body, "hidden": body.hidden}

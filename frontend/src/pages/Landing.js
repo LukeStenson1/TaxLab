@@ -65,22 +65,25 @@ const plans = [
     id: "free",
     name: "Free",
     price: "$0",
-    tagline: "Try it on one return",
-    features: ["1 return analysis", "Core insight modules", "Scenario simulator", "Educational reports"],
+    period: "",
+    tagline: "Your first return, full access",
+    features: ["1 return analysis", "Full insights ranked by $ impact", "Scenario simulator", "Federal + state breakdown", "Educational reports"],
     cta: "Get started",
     popular: false,
   },
   {
     id: "pro",
     name: "Pro",
-    price: "$29",
-    tagline: "For the proactive filer",
+    price: "$20",
+    period: "/ month",
+    annualNote: "or $200/year — 2 months free",
+    tagline: "Unlock every return after your first",
     features: [
-      "Unlimited return analyses",
-      "All 8 insight modules",
+      "Everything in Free",
+      "Unlimited additional returns",
+      "Same full access on every return",
       "Year-over-year dashboard",
-      "Priority Gemini analysis",
-      "Downloadable reports",
+      "Downloadable PDF reports",
     ],
     cta: "Go Pro",
     popular: true,
@@ -254,8 +257,9 @@ export default function Landing() {
               <p className="text-sm text-slate-500">{p.tagline}</p>
               <div className="mt-4 flex items-baseline gap-1">
                 <span className="font-heading text-4xl font-bold text-navy-900">{p.price}</span>
-                {p.id === "pro" && <span className="text-sm text-slate-500">/ year</span>}
+                {p.period && <span className="text-sm text-slate-500">{p.period}</span>}
               </div>
+              {p.annualNote && <p className="mt-1 text-xs font-medium text-teal-700">{p.annualNote}</p>}
               <ul className="mt-6 flex flex-1 flex-col gap-3">
                 {p.features.map((f) => (
                   <li key={f} className="flex items-center gap-2 text-sm text-slate-700">

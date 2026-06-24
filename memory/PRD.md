@@ -105,3 +105,10 @@ Gemini 2.5 Flash · own Gemini key · email/password auth only · real Stripe ·
 - Optional: re-run testing agent to confirm Settings plan-cards fix; clean up test-polluted orgs/users in preview DB.
 - Org owner self-service (currently admin-managed); subscription management/cancel UI; proration on seat changes.
 - Set ADMIN_EMAILS + real Stripe live keys + STRIPE_WEBHOOK_SECRET on Render; add webhook endpoint in Stripe dashboard.
+
+## Iteration 8 (2026-06-24) — Pricing model, learning accordion, ordering + drag-drop
+- Landing pricing fixed: Free = "first return, full access" (1 return); Pro = $20/month with "or $200/year" note (was wrongly $29/year). Free tier behavior unchanged per user.
+- Learning page: topics now click-to-expand accordions (like AI insights) — flat ordered list, category tags, search retained.
+- Default content reordered most basic -> advanced (filing status, dependents, std vs itemized, marginal vs effective, ... AMT, step-up basis). Re-seeded preview DB.
+- Admin learning page: native HTML5 drag-and-drop reordering via grip handle -> POST /api/learning/reorder (verified: swap persisted to public order + restored). 
+- Verified: reorder API works, ordering correct, frontend compiles, accordion renders (screenshot confirmed).

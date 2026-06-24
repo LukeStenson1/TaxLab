@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Search, BookOpen } from "lucide-react";
+import { Search, BookOpen, ChevronDown } from "lucide-react";
 import api from "../lib/api";
 
 export default function LearningCenter({ heading = true }) {
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
     api
@@ -26,22 +27,15 @@ export default function LearningCenter({ heading = true }) {
     );
   }, [sections, query]);
 
-  const grouped = useMemo(() => {
-    const map = {};
-    filtered.forEach((s) => {
-      (map[s.category] = map[s.category] || []).push(s);
-    });
-    return Object.entries(map);
-  }, [filtered]);
-
   return (
     <div data-testid="learning-center">
       {heading && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="font-heading text-2xl font-bold text-navy-900">Learning center</h2>
-            <p className="text-sm text-slate-600">Plain-English tax explanations and how-tos.</p>
-          </div>
+        <div>
+          <h2 className="font-heading text-2xl font-bold text-navy-900">Learning center</h2>
+          <p className="text-sm text-slate-600">
+            Plain-English tax explanations — tap any topic to expand. Ordered from the basics to the
+            more advanced.
+          </p>
         </div>
       )}
 
@@ -64,31 +58,45 @@ export default function LearningCenter({ heading = true }) {
           <p className="text-sm text-slate-500">No matching topics.</p>
         </div>
       ) : (
-        <div className="mt-8 space-y-10">
-          {grouped.map(([category, items]) => (
-            <div key={category}>
-              <h3 className="font-heading text-xs font-bold uppercase tracking-[0.2em] text-teal-700">
-                {category}
-              </h3>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {items.map((s) => (
-                  <article
-                    key={s.id}
-                    id={s.slug}
-                    data-testid={`learning-section-${s.slug}`}
-                    className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-                  >
-                    <h4 className="font-heading text-lg font-semibold text-navy-900">{s.title}</h4>
+        <div className="mt-6 space-y-3">
+          {filtered.map((s) => {
+            const open = openId === s.id;
+            return (
+              <div
+                key={s.id}
+                id={s.slug}
+                data-testid={`learning-section-${s.slug}`}
+                className={`overflow-hidden rounded-xl border bg-white shadow-sm transition-colors ${
+                  open ? "border-teal-400" : "border-slate-200"
+                }`}
+              >
+                <button
+                  onClick={() => setOpenId(open ? null : s.id)}
+                  data-testid={`learning-toggle-${s.slug}`}
+                  className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="hidden rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal-700 sm:inline">
+                      {s.category}
+                    </span>
+                    <span className="font-heading text-base font-semibold text-navy-900">{s.title}</span>
+                  </span>
+                  <ChevronDown
+                    className={`h-5 w-5 shrink-0 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {open && (
+                  <div className="border-t border-slate-100 px-5 pb-5 pt-4">
                     {s.body.split("\n").filter(Boolean).map((p, i) => (
-                      <p key={i} className="mt-2 text-[15px] leading-relaxed text-slate-700">
+                      <p key={i} className="text-[15px] leading-relaxed text-slate-700">
                         {p}
                       </p>
                     ))}
-                  </article>
-                ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

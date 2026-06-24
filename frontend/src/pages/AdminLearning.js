@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, RefreshCw, BookOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, RefreshCw, BookOpen, GripVertical } from "lucide-react";
 import api from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -15,6 +15,24 @@ export default function AdminLearning() {
   const [saving, setSaving] = useState(false);
   const [taxMeta, setTaxMeta] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [dragIndex, setDragIndex] = useState(null);
+
+  const handleDrop = async (toIndex) => {
+    if (dragIndex === null || dragIndex === toIndex) {
+      setDragIndex(null);
+      return;
+    }
+    const reordered = [...sections];
+    const [moved] = reordered.splice(dragIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    setSections(reordered);
+    setDragIndex(null);
+    try {
+      await api.post("/learning/reorder", { ids: reordered.map((s) => s.id) });
+    } catch {
+      load();
+    }
+  };
 
   const load = () => {
     setLoading(true);
@@ -123,27 +141,38 @@ export default function AdminLearning() {
           <p className="mt-8 text-sm text-slate-500">Loading…</p>
         ) : (
           <div className="mt-6 space-y-3" data-testid="admin-sections-list">
-            {sections.map((s) => (
+            <p className="text-xs text-slate-500">Drag the handle to reorder how topics appear on the learning page.</p>
+            {sections.map((s, idx) => (
               <div
                 key={s.id}
+                draggable
+                onDragStart={() => setDragIndex(idx)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => handleDrop(idx)}
                 data-testid={`admin-section-${s.slug}`}
                 className={`flex items-start justify-between gap-4 rounded-xl border bg-white p-4 shadow-sm ${
-                  s.hidden ? "border-slate-200 opacity-60" : "border-slate-200"
-                }`}
+                  s.hidden ? "opacity-60" : ""
+                } ${dragIndex === idx ? "border-teal-400 ring-2 ring-teal-300" : "border-slate-200"}`}
               >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal-700">
-                      {s.category}
-                    </span>
-                    {s.hidden && (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                        Hidden
+                <div className="flex min-w-0 items-start gap-3">
+                  <GripVertical
+                    data-testid={`admin-drag-${s.slug}`}
+                    className="mt-1 h-4 w-4 shrink-0 cursor-grab text-slate-400 active:cursor-grabbing"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal-700">
+                        {s.category}
                       </span>
-                    )}
+                      {s.hidden && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Hidden
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 font-heading font-semibold text-navy-900">{s.title}</p>
+                    <p className="mt-0.5 line-clamp-2 text-sm text-slate-500">{s.body}</p>
                   </div>
-                  <p className="mt-1 font-heading font-semibold text-navy-900">{s.title}</p>
-                  <p className="mt-0.5 line-clamp-2 text-sm text-slate-500">{s.body}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <button onClick={() => toggleHide(s)} title={s.hidden ? "Show" : "Hide"} data-testid={`admin-hide-${s.slug}`} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
