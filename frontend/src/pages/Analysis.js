@@ -98,7 +98,10 @@ export default function Analysis() {
   const rf = ret.rawFields || {};
   const insights = ret.insights || [];
 
-  const stateCode = rf.state || "";
+  // Pull state and filingStatus from context since they are not stored in rawFields
+  const stateCode = rf.state || ret.context?.state || "";
+  const filingStatus = ret.context?.filingStatus || rf.filingStatus || "single";
+
   const agi = Number(rf.agi) || 0;
   const taxable = Number(rf.taxableIncome) || 0;
   const federalTax = Number(rf.totalTax) || 0;
@@ -264,14 +267,14 @@ export default function Analysis() {
         {/* Simulator */}
         <h2 className="font-heading mt-12 text-2xl font-semibold text-navy-900">What if?</h2>
         <p className="mb-5 mt-1 text-slate-600">
-          Explore how common moves could change your estimated federal tax.
+          Explore how common moves could change your estimated federal + state tax.
         </p>
-        <ScenarioSimulator 
+        <ScenarioSimulator
           rawFields={{
-            ...ret.rawFields,
-            state: ret.context?.state || "",
-            filingStatus: ret.context?.filingStatus || ret.rawFields?.filingStatus || "single",
-          }} 
+            ...rf,
+            state: stateCode,
+            filingStatus: filingStatus,
+          }}
         />
 
         {/* Sources & methodology */}
