@@ -26,6 +26,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from fpdf import FPDF
 
 import tax_reference
+from learning_seed import DEFAULT_SECTIONS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("taxlens")
@@ -41,6 +42,19 @@ STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 JWT_ALGORITHM = "HS256"
+
+# Admin allow-list — these emails get full access + admin tools (reproducible across deploys).
+ADMIN_EMAILS = {
+    e.strip().lower()
+    for e in os.environ.get("ADMIN_EMAILS", "luke.s.stenson@gmail.com").split(",")
+    if e.strip()
+}
+
+
+def is_admin_user(user: dict) -> bool:
+    return bool(user) and (
+        (user.get("email", "").lower() in ADMIN_EMAILS) or user.get("role") == "admin"
+    )
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -99,12 +113,14 @@ def set_auth_cookie(response: Response, token: str):
 
 
 def serialize_user(user: dict) -> dict:
+    admin = is_admin_user(user)
     return {
         "id": str(user["_id"]),
         "email": user["email"],
         "createdAt": user.get("created_at"),
-        "billingStatus": user.get("billing_status", "free"),
+        "billingStatus": "admin" if admin else user.get("billing_status", "free"),
         "plan": user.get("plan"),
+        "isAdmin": admin,
     }
 
 
@@ -128,6 +144,12 @@ async def get_current_user(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if not is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Admin access required.")
+    return user
 
 
 # ---------------------------------------------------------------------------
@@ -736,6 +758,127 @@ async def root():
 
 
 # ---------------------------------------------------------------------------
+# Learning center (admin-managed CMS)
+# ---------------------------------------------------------------------------
+class LearningSectionIn(BaseModel):
+    title: str
+    category: str
+    body: str
+    order: Optional[int] = None
+    hidden: bool = False
+
+
+def serialize_section(doc: dict) -> dict:
+    return {
+        "id": str(doc["_id"]),
+        "slug": doc.get("slug", str(doc["_id"])),
+        "title": doc.get("title", ""),
+        "category": doc.get("category", "General"),
+        "body": doc.get("body", ""),
+        "order": doc.get("order", 0),
+        "hidden": doc.get("hidden", False),
+    }
+
+
+@api.get("/learning")
+async def list_learning():
+    cursor = db.learning_sections.find({"hidden": {"$ne": True}}).sort("order", 1)
+    docs = await cursor.to_list(length=500)
+    return {"sections": [serialize_section(d) for d in docs]}
+
+
+@api.get("/learning/all")
+async def list_learning_all(admin: dict = Depends(require_admin)):
+    cursor = db.learning_sections.find({}).sort("order", 1)
+    docs = await cursor.to_list(length=500)
+    return {"sections": [serialize_section(d) for d in docs]}
+
+
+@api.post("/learning")
+async def create_learning(body: LearningSectionIn, admin: dict = Depends(require_admin)):
+    if body.order is None:
+        last = await db.learning_sections.find_one(sort=[("order", -1)])
+        order = (last.get("order", 0) + 1) if last else 0
+    else:
+        order = body.order
+    slug = re.sub(r"[^a-z0-9]+", "-", body.title.lower()).strip("-") or str(ObjectId())
+    doc = {
+        "title": body.title,
+        "category": body.category,
+        "body": body.body,
+        "order": order,
+        "hidden": body.hidden,
+        "slug": slug,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    result = await db.learning_sections.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return {"section": serialize_section(doc)}
+
+
+@api.put("/learning/{section_id}")
+async def update_learning(section_id: str, body: LearningSectionIn, admin: dict = Depends(require_admin)):
+    update = {"title": body.title, "category": body.category, "body": body.body, "hidden": body.hidden}
+    if body.order is not None:
+        update["order"] = body.order
+    result = await db.learning_sections.update_one({"_id": ObjectId(section_id)}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Section not found")
+    doc = await db.learning_sections.find_one({"_id": ObjectId(section_id)})
+    return {"section": serialize_section(doc)}
+
+
+@api.patch("/learning/{section_id}/visibility")
+async def toggle_learning_visibility(section_id: str, admin: dict = Depends(require_admin)):
+    doc = await db.learning_sections.find_one({"_id": ObjectId(section_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Section not found")
+    new_hidden = not doc.get("hidden", False)
+    await db.learning_sections.update_one({"_id": ObjectId(section_id)}, {"$set": {"hidden": new_hidden}})
+    doc["hidden"] = new_hidden
+    return {"section": serialize_section(doc)}
+
+
+@api.delete("/learning/{section_id}")
+async def delete_learning(section_id: str, admin: dict = Depends(require_admin)):
+    result = await db.learning_sections.delete_one({"_id": ObjectId(section_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Section not found")
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Admin: tax-data reference
+# ---------------------------------------------------------------------------
+@api.get("/admin/tax-data")
+async def get_tax_data(admin: dict = Depends(require_admin)):
+    meta = await db.tax_data_meta.find_one({"_id": "current"})
+    return {
+        "reference": tax_reference.TAX_REFERENCE,
+        "lastRefreshed": (meta or {}).get("last_refreshed"),
+        "refreshedBy": (meta or {}).get("refreshed_by"),
+    }
+
+
+@api.post("/admin/tax-data/refresh")
+async def refresh_tax_data(admin: dict = Depends(require_admin)):
+    now = datetime.now(timezone.utc).isoformat()
+    await db.tax_data_meta.update_one(
+        {"_id": "current"},
+        {"$set": {"last_refreshed": now, "refreshed_by": admin.get("email")}},
+        upsert=True,
+    )
+    years = sorted(tax_reference.TAX_REFERENCE.keys())
+    return {
+        "ok": True,
+        "lastRefreshed": now,
+        "years": years,
+        "latestYear": years[-1] if years else None,
+        "message": "Tax reference re-synced from the bundled IRS/state tables.",
+    }
+
+
+# ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------
 @app.on_event("startup")
@@ -743,6 +886,17 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await db.tax_returns.create_index("user_id")
     await db.payment_transactions.create_index("session_id")
+    await db.learning_sections.create_index("order")
+    # Seed the learning center on first run only.
+    if await db.learning_sections.count_documents({}) == 0:
+        now = datetime.now(timezone.utc).isoformat()
+        await db.learning_sections.insert_many(
+            [
+                {**s, "order": i, "hidden": s.get("hidden", False), "created_at": now}
+                for i, s in enumerate(DEFAULT_SECTIONS)
+            ]
+        )
+        logger.info("Seeded %d learning sections", len(DEFAULT_SECTIONS))
     logger.info("TaxLens API started")
 
 

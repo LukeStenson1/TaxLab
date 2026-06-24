@@ -12,6 +12,8 @@ import Settings from "./pages/Settings";
 import BillingSuccess from "./pages/BillingSuccess";
 import CheckIn from "./pages/CheckIn";
 import Learn from "./pages/Learn";
+import LearnApp from "./pages/LearnApp";
+import AdminLearning from "./pages/AdminLearning";
 
 function Loading() {
   return (
@@ -47,6 +49,8 @@ export default function App() {
           <Route path="/app/dashboard" element={<Protected><Dashboard /></Protected>} />
           <Route path="/app/upload" element={<Protected><Upload /></Protected>} />
           <Route path="/app/checkin" element={<Protected><CheckIn /></Protected>} />
+          <Route path="/app/learn" element={<Protected><LearnApp /></Protected>} />
+          <Route path="/app/admin/learning" element={<Protected><AdminLearning /></Protected>} />
           <Route path="/app/analysis/:id" element={<Protected><Analysis /></Protected>} />
           <Route path="/app/settings" element={<Protected><Settings /></Protected>} />
           <Route path="/billing/success" element={<Protected><BillingSuccess /></Protected>} />

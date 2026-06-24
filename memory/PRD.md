@@ -73,3 +73,20 @@ Gemini 2.5 Flash · own Gemini key · email/password auth only · real Stripe ·
 ## Backlog / Next
 - E2E re-test free-user gating on a real analyzed return once a valid GEMINI key is in preview.
 - Optional: paid-path E2E (requires Stripe checkout). Reflect 2025 figures + state in the downloadable PDF.
+
+## Iteration 6 (2026-06-24) — Admin role + Learning CMS + Fed/State cleanup
+- Admin role: ADMIN_EMAILS allow-list (default luke.s.stenson@gmail.com), is_admin_user() + require_admin dependency, serialize_user exposes isAdmin and billingStatus="admin". Admins get full feature access (Analysis + Simulator gating treat isAdmin as paid; PDF unlocked).
+- Learning center is now DB-driven (learning_sections collection, seeded with 17 sections incl. dependents, filing-status requirements, std vs itemized, marginal vs effective, how-to effective rate, how-to quarterly taxes, SE/FICA, QBI, capital gains, wash sale, NIIT, AMT, step-up basis, Roth vs Traditional, RMDs, HSA/FSA, CTC).
+- Admin CMS: GET/POST/PUT/DELETE /api/learning, PATCH visibility, GET /learning/all. Admin UI at /app/admin/learning (add/edit/hide/delete) + "Refresh tax data" (POST /api/admin/tax-data/refresh, records timestamp). ALL verified via curl: create/hide(public hides)/edit/delete/refresh.
+- Learn accessible logged-in (/app/learn nav "Learn") AND public (/learn), shared LearningCenter component with search.
+- Federal+State presentation redesigned into ONE clear "What you owe" card: Federal + State = Combined (big), with combined rate; top row = AGI, Taxable income, Federal effective rate, Combined rate. Removes prior duplication.
+- Verified: backend boots + seeds 17, admin CRUD works, non-admin 403, public /learn renders DB content. Frontend compiles.
+
+## DEFERRED to next session (acknowledged to user)
+- Organizations / seats: admin creates business, invites/links members, one subscription covers all seats (chosen model).
+- Stripe RECURRING subscriptions (Pro monthly + annual) — switch from one-time; native stripe SDK mode="subscription" (NO emergentintegrations). Need user's live keys on Render; preview uses test key.
+- User-management admin page (manage users, assign to orgs).
+- Optional: ADMIN_EMAILS env on Render; editable tax tables (current refresh just re-syncs bundled tables + timestamp).
+
+## REMINDER
+- GitHub remote is disconnected in this workspace; user must click "Save to Github" to push. This workspace == latest (contains their deploy refactor + all iterations).

@@ -38,7 +38,7 @@ export default function Analysis() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isPaid = !!(user?.billingStatus && user.billingStatus !== "free");
+  const isPaid = !!(user?.isAdmin || (user?.billingStatus && user.billingStatus !== "free"));
   const [ret, setRet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -143,8 +143,8 @@ export default function Analysis() {
       </div>
 
       <div className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
-        {/* Summary stats */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {/* Income context */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatTile label="AGI" value={fmtUSD(rf.agi)} testid="stat-agi" info={GLOSSARY.agi} />
           <StatTile
             label="Taxable income"
@@ -153,92 +153,75 @@ export default function Analysis() {
             info={GLOSSARY.taxableIncome}
           />
           <StatTile
-            label="Federal tax"
-            value={fmtUSD(rf.totalTax)}
-            testid="stat-total-tax"
-            info={GLOSSARY.federalTax}
-          />
-          <StatTile
-            label="Effective rate"
+            label="Federal effective rate"
             value={fmtPct(rf.effectiveRate)}
             testid="stat-effective"
             info={GLOSSARY.effectiveRate}
           />
+          <StatTile
+            label="Combined rate"
+            value={stateCode ? fmtPct(combinedEff) : "—"}
+            testid="stat-combined-rate"
+            info={GLOSSARY.combinedEffectiveRate}
+          />
         </div>
 
-        {/* Federal + State combined */}
+        {/* Unified tax breakdown: Federal + State = Combined */}
         <div
           data-testid="combined-tax-section"
-          className="mt-4 rounded-2xl border border-slate-200 bg-navy-900 p-6 text-white shadow-sm"
+          className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-navy-900 text-white shadow-sm"
         >
-          <div className="flex items-center gap-2">
-            <h2 className="font-heading text-lg font-semibold">Federal + State</h2>
+          <div className="flex items-center gap-2 border-b border-white/10 px-6 py-4">
+            <h2 className="font-heading text-lg font-semibold">What you owe</h2>
             <InfoTooltip tone="light" label="combined tax" testid="info-combined" text={GLOSSARY.combinedTax} />
-            {stateCode && (
-              <span className="ml-auto rounded-full bg-white/10 px-3 py-1 text-xs font-medium">
-                {stateName(stateCode)}
-              </span>
-            )}
+            <span className="ml-auto rounded-full bg-white/10 px-3 py-1 text-xs font-medium">
+              {stateCode ? stateName(stateCode) : "No state selected"}
+            </span>
           </div>
 
-          {stateCode ? (
-            <>
-              <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div>
-                  <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Federal tax
-                  </p>
-                  <p data-testid="combined-federal" className="font-heading mt-1 text-xl font-bold">
-                    {fmtUSD(federalTax)}
-                  </p>
-                </div>
-                <div>
-                  <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-slate-400">
-                    State tax (est.)
-                    <InfoTooltip tone="light" label="state tax" testid="info-state-tax" text={GLOSSARY.stateTax} />
-                  </p>
-                  <p data-testid="combined-state" className="font-heading mt-1 text-xl font-bold text-teal-300">
-                    {hasIncomeTax(stateCode) ? fmtUSD(stateTaxEst) : "$0"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Combined tax</p>
-                  <p data-testid="combined-total" className="font-heading mt-1 text-xl font-bold">
-                    {fmtUSD(combinedTax)}
-                  </p>
-                </div>
-                <div>
-                  <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Combined rate
-                    <InfoTooltip
-                      tone="light"
-                      label="combined effective rate"
-                      testid="info-combined-rate"
-                      text={GLOSSARY.combinedEffectiveRate}
-                    />
-                  </p>
-                  <p data-testid="combined-rate" className="font-heading mt-1 text-xl font-bold">
-                    {fmtPct(combinedEff)}
-                  </p>
-                </div>
-              </div>
-              {!hasIncomeTax(stateCode) && (
-                <p className="mt-3 text-xs text-slate-400">
-                  {stateName(stateCode)} has no broad state income tax, so your state estimate is $0.
-                </p>
-              )}
-              {hasIncomeTax(stateCode) && (
-                <p className="mt-3 text-xs text-slate-400">
-                  State tax is a simplified estimate using {stateName(stateCode)}'s typical rate — not an exact figure.
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="mt-3 text-sm text-slate-300">
-              This return was analyzed without a state selected. Run a new analysis and pick your
-              state to see combined federal + state numbers.
-            </p>
-          )}
+          <div className="grid items-center gap-2 px-6 py-6 sm:grid-cols-[1fr_auto_1fr_auto_1.1fr]">
+            {/* Federal */}
+            <div className="text-center sm:text-left">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Federal tax</p>
+              <p data-testid="combined-federal" className="font-heading mt-1 text-2xl font-bold">
+                {fmtUSD(federalTax)}
+              </p>
+            </div>
+
+            <div className="hidden text-2xl font-light text-slate-500 sm:block">+</div>
+
+            {/* State */}
+            <div className="text-center sm:text-left">
+              <p className="flex items-center justify-center gap-1 text-xs font-bold uppercase tracking-wider text-slate-400 sm:justify-start">
+                State tax (est.)
+                <InfoTooltip tone="light" label="state tax" testid="info-state-tax" text={GLOSSARY.stateTax} />
+              </p>
+              <p data-testid="combined-state" className="font-heading mt-1 text-2xl font-bold text-teal-300">
+                {stateCode ? fmtUSD(stateTaxEst) : "—"}
+              </p>
+            </div>
+
+            <div className="hidden text-2xl font-light text-slate-500 sm:block">=</div>
+
+            {/* Combined */}
+            <div className="rounded-xl bg-white/5 p-4 text-center sm:text-left">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-300">Combined tax</p>
+              <p data-testid="combined-total" className="font-heading mt-1 text-3xl font-bold text-white">
+                {fmtUSD(combinedTax)}
+              </p>
+              <p data-testid="combined-rate" className="mt-0.5 text-xs text-slate-400">
+                {stateCode ? `${fmtPct(combinedEff)} of AGI` : `Federal only · ${fmtPct(rf.effectiveRate)}`}
+              </p>
+            </div>
+          </div>
+
+          <p className="border-t border-white/10 px-6 py-3 text-xs text-slate-400">
+            {!stateCode
+              ? "No state selected, so this shows federal only. Run a new analysis and pick your state to include state income tax."
+              : !hasIncomeTax(stateCode)
+              ? `${stateName(stateCode)} has no broad state income tax, so your state estimate is $0 and combined equals federal.`
+              : `State tax is a simplified estimate using ${stateName(stateCode)}'s typical rate — not an exact figure.`}
+          </p>
         </div>
 
         {/* Insights */}

@@ -72,7 +72,7 @@ function SliderRow({ cfg, value, onChange, locked }) {
 
 export default function ScenarioSimulator({ rawFields }) {
   const { user } = useAuth();
-  const isPaid = !!(user?.billingStatus && user.billingStatus !== "free");
+  const isPaid = !!(user?.isAdmin || (user?.billingStatus && user.billingStatus !== "free"));
 
   const [values, setValues] = useState(() =>
     SLIDERS.reduce((acc, s) => ({ ...acc, [s.key]: 0 }), {})

@@ -1,18 +1,23 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, UploadCloud, Settings, LogOut, ScanLine, CalendarClock } from "lucide-react";
+import { LayoutDashboard, UploadCloud, Settings, LogOut, ScanLine, CalendarClock, BookOpen, Shield } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const navItems = [
   { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
   { to: "/app/upload", label: "Upload", icon: UploadCloud, testid: "nav-upload" },
   { to: "/app/checkin", label: "Check-in", icon: CalendarClock, testid: "nav-checkin" },
+  { to: "/app/learn", label: "Learn", icon: BookOpen, testid: "nav-learn" },
   { to: "/app/settings", label: "Settings", icon: Settings, testid: "nav-settings" },
 ];
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  const items = user?.isAdmin
+    ? [...navItems, { to: "/app/admin/learning", label: "Admin", icon: Shield, testid: "nav-admin" }]
+    : navItems;
 
   const handleLogout = async () => {
     await logout();
@@ -32,7 +37,7 @@ export default function Layout({ children }) {
           </span>
         </div>
         <nav className="mt-2 flex flex-1 flex-col gap-1 px-3">
-          {navItems.map((item) => (
+          {items.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -70,7 +75,7 @@ export default function Layout({ children }) {
 
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 z-40 flex h-16 w-full items-center justify-around border-t border-slate-200 bg-white md:hidden">
-        {navItems.map((item) => (
+        {items.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
