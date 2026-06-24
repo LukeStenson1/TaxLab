@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { TrendingUp, HelpCircle, Lock, X } from "lucide-react";
+import { TrendingUp, HelpCircle, Lock, X, AlertTriangle } from "lucide-react";
 import { fmtUSD } from "../lib/taxCalc";
 import InfoTooltip from "./InfoTooltip";
 import GLOSSARY from "../lib/glossary";
@@ -34,10 +34,18 @@ const SEVERITY_STYLES = {
   low: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
+// Modules that represent a tax RISK (show as warning, not savings)
+const RISK_MODULES = new Set([
+  "niit_proximity",
+  "underpayment_risk",
+  "credit_phaseout",
+]);
+
 function InsightModal({ insight, onClose }) {
   const impact = Number(insight.dollarImpact) || 0;
   const severity = insight.severity || "medium";
   const moduleInfo = MODULE_INFO[insight.module];
+  const isRisk = RISK_MODULES.has(insight.module);
 
   return createPortal(
     <>
@@ -72,11 +80,23 @@ function InsightModal({ insight, onClose }) {
 
         <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-5">
           <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-emerald-600" />
-            <span className="text-2xl font-bold text-emerald-600">
-              {impact >= 0 ? "+" : "-"}{fmtUSD(Math.abs(impact))}
-            </span>
-            <span className="text-sm text-slate-400">estimated impact</span>
+            {isRisk ? (
+              <>
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                <span className="text-2xl font-bold text-amber-500">
+                  -{fmtUSD(Math.abs(impact))}
+                </span>
+                <span className="text-sm text-slate-400">potential tax risk</span>
+              </>
+            ) : (
+              <>
+                <TrendingUp className="h-5 w-5 text-emerald-600" />
+                <span className="text-2xl font-bold text-emerald-600">
+                  +{fmtUSD(Math.abs(impact))}
+                </span>
+                <span className="text-sm text-slate-400">estimated savings</span>
+              </>
+            )}
             <span className={`ml-auto rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${SEVERITY_STYLES[severity] || SEVERITY_STYLES.medium}`}>
               {severity}
             </span>
@@ -126,6 +146,7 @@ export default function InsightCard({ insight, rank, locked = false }) {
   const [modalOpen, setModalOpen] = useState(false);
   const impact = Number(insight.dollarImpact) || 0;
   const severity = insight.severity || "medium";
+  const isRisk = RISK_MODULES.has(insight.module);
 
   return (
     <>
@@ -191,14 +212,29 @@ export default function InsightCard({ insight, rank, locked = false }) {
                 {insight.explanation}
               </p>
               <div className="mt-auto flex items-center gap-2 pt-2">
-                <TrendingUp className="h-5 w-5 text-emerald-600" />
-                <span
-                  data-testid={`insight-impact-${insight.module}`}
-                  className="font-heading text-2xl font-bold text-emerald-600"
-                >
-                  {impact >= 0 ? "+" : "-"}{fmtUSD(Math.abs(impact))}
-                </span>
-                <span className="text-xs text-slate-400">estimated impact</span>
+                {isRisk ? (
+                  <>
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                    <span
+                      data-testid={`insight-impact-${insight.module}`}
+                      className="font-heading text-2xl font-bold text-amber-500"
+                    >
+                      -{fmtUSD(Math.abs(impact))}
+                    </span>
+                    <span className="text-xs text-slate-400">potential tax risk</span>
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="h-5 w-5 text-emerald-600" />
+                    <span
+                      data-testid={`insight-impact-${insight.module}`}
+                      className="font-heading text-2xl font-bold text-emerald-600"
+                    >
+                      +{fmtUSD(Math.abs(impact))}
+                    </span>
+                    <span className="text-xs text-slate-400">estimated savings</span>
+                  </>
+                )}
               </div>
               <p className="text-xs font-medium text-teal-600">Click to learn more →</p>
             </>
