@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Navigate, Link } from "react-router-dom";
-import { Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, RefreshCw, BookOpen, GripVertical } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, RefreshCw, BookOpen, GripVertical, ArrowLeft } from "lucide-react";
 import api from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, RefreshCw, BookOpen, GripVertical, ArrowLeft } from "lucide-react";
 
 const EMPTY = { title: "", category: "", body: "", hidden: false };
 
