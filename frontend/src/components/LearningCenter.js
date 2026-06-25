@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Search, BookOpen, ChevronDown } from "lucide-react";
-import api from "../lib/api";
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 
 export default function LearningCenter({ heading = true }) {
   const [sections, setSections] = useState([]);
@@ -9,9 +10,9 @@ export default function LearningCenter({ heading = true }) {
   const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
-    api
-      .get("/learning")
-      .then(({ data }) => setSections(data.sections || []))
+    fetch(`${BACKEND_URL}/api/learning`)
+      .then((r) => r.json())
+      .then((data) => setSections(data.sections || []))
       .catch(() => setSections([]))
       .finally(() => setLoading(false));
   }, []);
@@ -51,11 +52,16 @@ export default function LearningCenter({ heading = true }) {
       </div>
 
       {loading ? (
-        <p className="mt-8 text-sm text-slate-500">Loading…</p>
+        <div className="mt-8 flex flex-col items-center gap-3 py-12">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-teal-600" />
+          <p className="text-sm text-slate-500">Loading topics…</p>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="mt-8 flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-300 py-12 text-center">
           <BookOpen className="h-6 w-6 text-slate-400" />
-          <p className="text-sm text-slate-500">No matching topics.</p>
+          <p className="text-sm text-slate-500">
+            {query ? "No matching topics." : "No topics added yet."}
+          </p>
         </div>
       ) : (
         <div className="mt-6 space-y-3">
@@ -88,7 +94,7 @@ export default function LearningCenter({ heading = true }) {
                 {open && (
                   <div className="border-t border-slate-100 px-5 pb-5 pt-4">
                     {s.body.split("\n").filter(Boolean).map((p, i) => (
-                      <p key={i} className="text-[15px] leading-relaxed text-slate-700">
+                      <p key={i} className="mt-2 text-[15px] leading-relaxed text-slate-700">
                         {p}
                       </p>
                     ))}
