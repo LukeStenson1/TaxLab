@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UploadCloud, FileText, X, Loader2 } from "lucide-react";
+import { UploadCloud, FileText, X, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import api, { formatApiErrorDetail } from "../lib/api";
 import Disclaimer from "../components/Disclaimer";
 import InfoTooltip from "../components/InfoTooltip";
@@ -26,10 +26,11 @@ const LIFE_CHANGES = ["New job", "Marriage", "New baby", "Retirement", "Home pur
 export default function Upload() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
+  const [fileStatuses, setFileStatuses] = useState({});
 
   const [filingStatus, setFilingStatus] = useState("single");
   const [stateCode, setStateCode] = useState("");
@@ -38,59 +39,103 @@ export default function Upload() {
   const [goal, setGoal] = useState("general awareness");
   const [lifeChanges, setLifeChanges] = useState([]);
 
-  const pickFile = (f) => {
+  const addFiles = (incoming) => {
     setError("");
-    if (!f) return;
-    if (!f.name.toLowerCase().endsWith(".pdf")) {
-      setError("Please upload a PDF file.");
-      return;
-    }
-    setFile(f);
+    const valid = Array.from(incoming).filter((f) => {
+      if (!f.name.toLowerCase().endsWith(".pdf")) {
+        setError("Only PDF files are accepted.");
+        return false;
+      }
+      return true;
+    });
+    setFiles((prev) => {
+      const existing = new Set(prev.map((f) => f.name));
+      const fresh = valid.filter((f) => !existing.has(f.name));
+      return [...prev, ...fresh];
+    });
+  };
+
+  const removeFile = (name) => {
+    setFiles((prev) => prev.filter((f) => f.name !== name));
+    setFileStatuses((prev) => {
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
   };
 
   const onDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
-    pickFile(e.dataTransfer.files?.[0]);
+    addFiles(e.dataTransfer.files);
   };
 
   const toggleLifeChange = (lc) => {
-    setLifeChanges((prev) => (prev.includes(lc) ? prev.filter((x) => x !== lc) : [...prev, lc]));
+    setLifeChanges((prev) =>
+      prev.includes(lc) ? prev.filter((x) => x !== lc) : [...prev, lc]
+    );
+  };
+
+  const setFileStatus = (name, status) => {
+    setFileStatuses((prev) => ({ ...prev, [name]: status }));
   };
 
   const handleAnalyze = async () => {
-    if (!file) {
-      setError("Please upload your tax return PDF first.");
+    if (files.length === 0) {
+      setError("Please upload at least one tax return PDF.");
       return;
     }
     setError("");
     setAnalyzing(true);
-    const form = new FormData();
-    form.append("pdf", file);
-    form.append("filingStatus", filingStatus);
-    form.append("state", stateCode);
-    form.append("dependents", String(dependents));
-    form.append("selfEmployment", selfEmployment);
-    form.append("goal", goal);
-    form.append("lifeChanges", JSON.stringify(lifeChanges));
-    try {
-      const { data } = await api.post("/returns/analyze", form, {
-        headers: { "Content-Type": "multipart/form-data" },
-        timeout: 120000,
-      });
-      navigate(`/app/analysis/${data.id}`);
-    } catch (err) {
-      setError(formatApiErrorDetail(err.response?.data?.detail) || err.message);
-      setAnalyzing(false);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+
+    const results = [];
+    for (const file of files) {
+      setFileStatus(file.name, "analyzing");
+      const form = new FormData();
+      form.append("pdf", file);
+      form.append("filingStatus", filingStatus);
+      form.append("state", stateCode);
+      form.append("dependents", String(dependents));
+      form.append("selfEmployment", selfEmployment);
+      form.append("goal", goal);
+      form.append("lifeChanges", JSON.stringify(lifeChanges));
+      try {
+        const { data } = await api.post("/returns/analyze", form, {
+          headers: { "Content-Type": "multipart/form-data" },
+          timeout: 120000,
+        });
+        setFileStatus(file.name, "done");
+        results.push(data.id);
+      } catch (err) {
+        setFileStatus(file.name, "error");
+        setError(
+          `Failed on ${file.name}: ${formatApiErrorDetail(err.response?.data?.detail) || err.message}`
+        );
+      }
     }
+
+    setAnalyzing(false);
+
+    if (results.length === 1) {
+      navigate(`/app/analysis/${results[0]}`);
+    } else if (results.length > 1) {
+      navigate("/app/dashboard");
+    }
+  };
+
+  const statusIcon = (name) => {
+    const s = fileStatuses[name];
+    if (s === "analyzing") return <Loader2 className="h-4 w-4 animate-spin text-teal-600" />;
+    if (s === "done") return <CheckCircle className="h-4 w-4 text-emerald-600" />;
+    if (s === "error") return <AlertCircle className="h-4 w-4 text-red-500" />;
+    return null;
   };
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
       <h1 className="font-heading text-3xl font-bold text-navy-900">Analyze a tax return</h1>
       <p className="mt-2 text-slate-600">
-        Upload your IRS return PDF and answer a few quick questions. We never store the PDF.
+        Upload one or more IRS return PDFs. We analyze each one separately. We never store the PDF.
       </p>
 
       {error && (
@@ -101,50 +146,60 @@ export default function Upload() {
 
       {/* Dropzone */}
       <div className="mt-8">
-        {!file ? (
-          <div
-            data-testid="dropzone"
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={onDrop}
-            className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 text-center transition-colors ${
-              dragOver ? "border-teal-600 bg-teal-50" : "border-slate-300 bg-slate-50 hover:bg-slate-100"
-            }`}
-          >
-            <UploadCloud className="h-10 w-10 text-slate-400" />
-            <p className="mt-4 font-medium text-navy-900">Drag and drop your tax return PDF</p>
-            <p className="mt-1 text-sm text-slate-500">or click to browse — PDF only</p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/pdf"
-              data-testid="file-input"
-              className="hidden"
-              onChange={(e) => pickFile(e.target.files?.[0])}
-            />
-          </div>
-        ) : (
-          <div data-testid="file-selected" className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50">
-                <FileText className="h-5 w-5 text-teal-700" />
+        <div
+          data-testid="dropzone"
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 text-center transition-colors ${
+            dragOver ? "border-teal-600 bg-teal-50" : "border-slate-300 bg-slate-50 hover:bg-slate-100"
+          }`}
+        >
+          <UploadCloud className="h-10 w-10 text-slate-400" />
+          <p className="mt-4 font-medium text-navy-900">Drag and drop your tax return PDFs</p>
+          <p className="mt-1 text-sm text-slate-500">or click to browse — PDF only, multiple files supported</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            multiple
+            data-testid="file-input"
+            className="hidden"
+            onChange={(e) => addFiles(e.target.files)}
+          />
+        </div>
+
+        {/* File list */}
+        {files.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {files.map((file) => (
+              <div
+                key={file.name}
+                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50">
+                    <FileText className="h-5 w-5 text-teal-700" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-navy-900">{file.name}</p>
+                    <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(0)} KB</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {statusIcon(file.name)}
+                  {!analyzing && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeFile(file.name); }}
+                      className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-navy-900">{file.name}</p>
-                <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(0)} KB</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setFile(null)}
-              data-testid="remove-file"
-              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            ))}
           </div>
         )}
       </div>
@@ -152,6 +207,7 @@ export default function Upload() {
       {/* Intake form */}
       <div className="mt-10 space-y-6">
         <h2 className="font-heading text-lg font-semibold text-navy-900">A few quick questions</h2>
+        <p className="text-sm text-slate-500">These apply to all uploaded returns.</p>
 
         <div>
           <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-700">
@@ -165,9 +221,7 @@ export default function Upload() {
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm capitalize focus:border-transparent focus:ring-2 focus:ring-teal-600"
           >
             {FILING_STATUSES.map((s) => (
-              <option key={s} value={s} className="capitalize">
-                {s}
-              </option>
+              <option key={s} value={s} className="capitalize">{s}</option>
             ))}
           </select>
         </div>
@@ -185,9 +239,7 @@ export default function Upload() {
           >
             <option value="">Select your state (for combined federal + state)</option>
             {STATES.map((s) => (
-              <option key={s.code} value={s.code}>
-                {s.name}
-              </option>
+              <option key={s.code} value={s.code}>{s.name}</option>
             ))}
           </select>
           <p className="mt-1 text-xs text-slate-500">
@@ -246,9 +298,7 @@ export default function Upload() {
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-transparent focus:ring-2 focus:ring-teal-600"
           >
             {GOALS.map((g) => (
-              <option key={g.value} value={g.value}>
-                {g.label}
-              </option>
+              <option key={g.value} value={g.value}>{g.label}</option>
             ))}
           </select>
         </div>
@@ -278,21 +328,23 @@ export default function Upload() {
 
         <button
           onClick={handleAnalyze}
-          disabled={analyzing}
+          disabled={analyzing || files.length === 0}
           data-testid="analyze-button"
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 py-3 font-medium text-white transition-colors hover:bg-teal-600 disabled:opacity-70"
         >
           {analyzing ? (
             <>
-              <Loader2 className="h-5 w-5 animate-spin" /> Analyzing your return…
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Analyzing {files.length > 1 ? `${files.length} returns` : "your return"}…
             </>
           ) : (
-            "Analyze my return"
+            `Analyze ${files.length > 1 ? `${files.length} returns` : "my return"}`
           )}
         </button>
+
         {analyzing && (
           <p className="text-center text-sm text-slate-500">
-            Reading your PDF with AI — this can take up to a minute.
+            Reading your PDF{files.length > 1 ? "s" : ""} with AI — this can take up to a minute per file.
           </p>
         )}
 
