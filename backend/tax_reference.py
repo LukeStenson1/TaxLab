@@ -52,7 +52,8 @@ TAX_REFERENCE = {
         "ltcg_0_max": {"single": 44625, "married filing jointly": 89250, "married filing separately": 44625, "head of household": 59750},
         "ltcg_15_max": {"single": 492300, "married filing jointly": 553850, "married filing separately": 276900, "head of household": 523050},
         "qbi_threshold": {"single": 182100, "married filing separately": 182100, "married filing jointly": 364200, "head of household": 182100},
-        "retirement": {"limit_401k": 22500, "catchup_401k": 7500, "limit_ira": 6500, "catchup_ira": 1000, "sep_max": 66000},
+        "retirement": {"limit_401k": 22500, "catchup_401k": 7500, "catchup_401k_age_60_63": 7500, "limit_ira": 6500, "catchup_ira": 1000, "sep_max": 66000},
+        "ctc": {"base": 2000, "refundable_max": 1600, "other_dependent": 500},
     },
     2024: {
         "rev_proc": "Rev. Proc. 2023-34; IRS Notice 2023-75 (retirement COLA)",
@@ -71,10 +72,11 @@ TAX_REFERENCE = {
         "ltcg_0_max": {"single": 47025, "married filing jointly": 94050, "married filing separately": 47025, "head of household": 63000},
         "ltcg_15_max": {"single": 518900, "married filing jointly": 583750, "married filing separately": 291850, "head of household": 551350},
         "qbi_threshold": {"single": 191950, "married filing separately": 191950, "married filing jointly": 383900, "head of household": 191950},
-        "retirement": {"limit_401k": 23000, "catchup_401k": 7500, "limit_ira": 7000, "catchup_ira": 1000, "sep_max": 69000},
+        "retirement": {"limit_401k": 23000, "catchup_401k": 7500, "catchup_401k_age_60_63": 7500, "limit_ira": 7000, "catchup_ira": 1000, "sep_max": 69000},
+        "ctc": {"base": 2000, "refundable_max": 1700, "other_dependent": 500},
     },
     2025: {
-        "rev_proc": "Rev. Proc. 2024-40; One Big Beautiful Bill Act (OBBBA) standard deduction increase; IRS COLA notice 2024 (retirement limits)",
+        "rev_proc": "Rev. Proc. 2024-40; One Big Beautiful Bill Act (OBBBA) signed July 4 2025; IRS COLA notice 2024 (retirement limits); SECURE 2.0 Act (age 60-63 catchup)",
         "standard_deduction": {
             "single": 15750,
             "married filing jointly": 31500,
@@ -90,7 +92,8 @@ TAX_REFERENCE = {
         "ltcg_0_max": {"single": 48350, "married filing jointly": 96700, "married filing separately": 48350, "head of household": 64750},
         "ltcg_15_max": {"single": 533400, "married filing jointly": 600050, "married filing separately": 300000, "head of household": 566700},
         "qbi_threshold": {"single": 197300, "married filing separately": 197300, "married filing jointly": 394600, "head of household": 197300},
-        "retirement": {"limit_401k": 23500, "catchup_401k": 7500, "limit_ira": 7000, "catchup_ira": 1000, "sep_max": 70000},
+        "retirement": {"limit_401k": 23500, "catchup_401k": 7500, "catchup_401k_age_60_63": 11250, "limit_ira": 7000, "catchup_ira": 1000, "sep_max": 70000},
+        "ctc": {"base": 2200, "refundable_max": 1700, "other_dependent": 500},
     },
 }
 
@@ -102,6 +105,8 @@ SOURCES = [
     "IRS Section 199A Qualified Business Income Deduction — irs.gov/newsroom/qualified-business-income-deduction",
     "IRS Education Credits (AOTC & LLC) — irs.gov/credits-deductions/individuals/education-credits-aotc-and-llc",
     "IRS Schedule 8812, Child Tax Credit — irs.gov/forms-pubs/about-schedule-8812-form-1040",
+    "One Big Beautiful Bill Act (OBBBA), signed July 4 2025 — CTC increase to $2,200, standard deduction increase, permanent TCJA provisions",
+    "SECURE 2.0 Act — enhanced 401(k) catch-up contribution $11,250 for ages 60-63 in 2025",
 ]
 
 
@@ -123,19 +128,30 @@ def reference_prompt_block() -> str:
     lines = [
         "OFFICIAL IRS REFERENCE FIGURES (use these EXACT numbers — never invent thresholds).",
         f"NIIT MAGI thresholds (all years, statutory): {_fmt(NIIT_THRESHOLD)}.",
-        f"Child Tax Credit MAGI phaseout START (all years, statutory): {_fmt(CTC_PHASEOUT_START)}.",
+        f"Child Tax Credit MAGI phaseout START (all years, statutory): {_fmt(CTC_PHASEOUT_START)}. Phaseout reduces credit by $50 per $1,000 over threshold.",
         f"Education credit (AOTC/LLC) MAGI phaseout ranges: single/HOH $80,000–$90,000; MFJ $160,000–$180,000; MFS not eligible.",
         "",
     ]
     for year in sorted(TAX_REFERENCE.keys()):
         r = TAX_REFERENCE[year]
+        ctc = r.get("ctc", {})
+        ret = r["retirement"]
         lines.append(f"--- Tax Year {year} (source: {r['rev_proc']}) ---")
         lines.append(f"  Standard deduction: {_fmt(r['standard_deduction'])}.")
         lines.append(
-            f"  Retirement limits: 401(k) ${r['retirement']['limit_401k']:,} (+${r['retirement']['catchup_401k']:,} catch-up 50+); "
-            f"IRA ${r['retirement']['limit_ira']:,} (+${r['retirement']['catchup_ira']:,} catch-up 50+); "
-            f"SEP-IRA up to 25% of net SE earnings, max ${r['retirement']['sep_max']:,}."
+            f"  Retirement limits: 401(k) ${ret['limit_401k']:,} "
+            f"(+${ret['catchup_401k']:,} catch-up age 50-59 and 64+; "
+            f"+${ret['catchup_401k_age_60_63']:,} catch-up age 60-63 per SECURE 2.0); "
+            f"IRA ${ret['limit_ira']:,} (+${ret['catchup_ira']:,} catch-up 50+); "
+            f"SEP-IRA up to 25% of net SE earnings, max ${ret['sep_max']:,}."
         )
+        if ctc:
+            lines.append(
+                f"  Child Tax Credit: ${ctc['base']:,} per qualifying child under 17; "
+                f"max refundable ACTC portion ${ctc['refundable_max']:,} per child; "
+                f"other dependent credit ${ctc['other_dependent']:,} (nonrefundable). "
+                f"Both child and at least one parent must have valid SSN (OBBBA requirement for 2025+)."
+            )
         lines.append(f"  Long-term capital gains 0% rate applies up to taxable income: {_fmt(r['ltcg_0_max'])}; 15% rate up to: {_fmt(r['ltcg_15_max'])}; 20% above.")
         lines.append(f"  QBI (Sec. 199A) phase-in threshold: {_fmt(r['qbi_threshold'])}.")
         lines.append(f"  Ordinary brackets {year}: {r['brackets']}")
