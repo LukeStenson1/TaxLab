@@ -103,9 +103,18 @@ export default function AdminLearning() {
     <div className="px-6 py-10">
       <div className="mx-auto max-w-5xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="font-heading text-3xl font-bold text-navy-900">Admin · Learning center</h1>
-            <p className="mt-1 text-slate-600">Add, edit, hide, or delete the public learning sections.</p>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/app/admin"
+              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+              title="Back to admin"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <div>
+              <h1 className="font-heading text-3xl font-bold text-navy-900">Admin · Learning center</h1>
+              <p className="mt-1 text-slate-600">Add, edit, hide, or delete the public learning sections.</p>
+            </div>
           </div>
           <button
             onClick={openNew}
