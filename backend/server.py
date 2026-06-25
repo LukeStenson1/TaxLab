@@ -1210,7 +1210,7 @@ def is_allowed_origin(origin: str) -> bool:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https://taxlab(-[a-z0-9]+)*(-lukestenson1s-projects)?\.vercel\.app|http://localhost:3000",
+    allow_origin_regex=r"https://(www\.)?taxlens\.site|https://taxlab(-[a-z0-9]+)*(-lukestenson1s-projects)?\.vercel\.app|http://localhost:3000",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
