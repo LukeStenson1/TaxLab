@@ -604,20 +604,22 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.multi_cell(W, 5, _clean(ins.get("askYourCPA", "")), fill=True)
         pdf.ln(6)
 
-    # ── Sources ───────────────────────────────────────────────────────────────
+   # ── Sources ───────────────────────────────────────────────────────────────
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_text_color(*NAVY)
-    # Check if Sources header itself fits
     if pdf.get_y() + 30 > pdf.h - pdf.b_margin:
         pdf.add_page()
     pdf.cell(0, 7, "Sources & Methodology", ln=1)
     pdf.set_font("Helvetica", "", 7.5)
     pdf.set_text_color(*SLATE)
     for s in sources:
-        lines_needed = max(1, len(_clean(f"- {s}")) // 90 + 1)
+        cleaned = _clean(f"- {s}")
+        if len(cleaned) > 200:
+            cleaned = cleaned[:197] + "..."
+        lines_needed = max(1, len(cleaned) // 90 + 1)
         if pdf.get_y() + (lines_needed * 4.5) + 10 > pdf.h - pdf.b_margin:
             pdf.add_page()
-        pdf.multi_cell(W, 4.5, _clean(f"- {s}"))
+        pdf.multi_cell(W, 4.5, cleaned)
     pdf.ln(3)
 
     # ── Disclaimer ────────────────────────────────────────────────────────────
