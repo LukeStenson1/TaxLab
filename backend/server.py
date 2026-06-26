@@ -605,40 +605,34 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.multi_cell(W, 5, _clean(ins.get("askYourCPA", "")), fill=True)
         pdf.ln(5)
 
-    # Sources
-    if sources:
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.set_text_color(*NAVY)
-        pdf.cell(0, 7, "Sources & Methodology", ln=1)
-        pdf.set_font("Helvetica", "", 7.5)
-        pdf.set_text_color(*SLATE)
-        # Show year-specific source first, then cap at 4 general sources
-        year_source = sources[0] if sources else None
-        general_sources = sources[1:5]  # max 4 general sources
-        remaining = len(sources) - 5
-        if year_source:
-            pdf.multi_cell(W, 4, _clean(f"- {year_source}"))
-        for s in general_sources:
-            pdf.multi_cell(W, 4, _clean(f"- {s}"))
-        if remaining > 0:
-            pdf.multi_cell(W, 4, _clean(
-                f"- Plus {remaining} additional IRS sources. "
-                f"Full methodology at taxlens.site/learn"
-            ))
-        pdf.ln(3)
-
-    # Disclaimer — always on same page as sources
-    pdf.set_font("Helvetica", "I", 7.5)
+    # Sources & Disclaimer — condensed to stay on one page
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(*NAVY)
+    pdf.cell(0, 6, "Sources & Methodology", ln=1)
+    pdf.set_font("Helvetica", "", 7)
     pdf.set_text_color(*SLATE)
-    pdf.multi_cell(
-        W, 4,
-        _clean(
-            "This is for educational purposes only and does not constitute tax or financial advice. "
-            "TaxLens calculations are grounded in official IRS figures for the relevant tax year and are "
-            "estimates intended to help you prepare questions for a licensed professional."
-        ),
-    )
 
+    # Single condensed source line instead of a list
+    year_ref = sources[0] if sources else ""
+    pdf.multi_cell(W, 3.8, _clean(
+        f"{year_ref}. Additional sources: IRS Rev. Proc. (irs.gov/newsroom), "
+        f"IRS COLA notices (irs.gov/retirement-plans), IRS Topic 409 (capital gains), "
+        f"IRS Form 8960 (NIIT), IRS Sec. 199A (QBI), IRS Schedule 8812 (CTC), "
+        f"OBBBA (signed July 4 2025), SECURE 2.0 Act. "
+        f"Full methodology at taxlens.site/learn"
+    ))
+    pdf.ln(2)
+
+    # Disclaimer
+    pdf.set_font("Helvetica", "I", 7)
+    pdf.set_text_color(*SLATE)
+    pdf.multi_cell(W, 3.8, _clean(
+        "This is for educational purposes only and does not constitute tax or financial advice. "
+        "TaxLens calculations are grounded in official IRS figures for the relevant tax year and are "
+        "estimates intended to help you prepare questions for a licensed professional."
+    ))
+    
     out = pdf.output()
     return bytes(out)
 
