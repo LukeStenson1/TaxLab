@@ -98,13 +98,13 @@ TAX_REFERENCE = {
 }
 
 SOURCES = [
-    "IRS Rev. Proc. (annual inflation adjustments) - irs.gov/newsroom",
-    "IRS COLA Increases for Dollar Limitations on Retirement Plans - irs.gov/retirement-plans",
-    "IRS Topic No. 409, Capital Gains and Losses - irs.gov/taxtopics/tc409",
-    "IRS Form 8960 and Instructions, Net Investment Income Tax - irs.gov/forms-pubs",
-    "IRS Section 199A Qualified Business Income Deduction - irs.gov/newsroom/qualified-business-income-deduction",
-    "IRS Education Credits (AOTC and LLC) - irs.gov/credits-deductions/individuals/education-credits-aotc-and-llc",
-    "IRS Schedule 8812, Child Tax Credit - irs.gov/forms-pubs/about-schedule-8812-form-1040",
+    "IRS Rev. Proc. annual inflation adjustments - irs.gov",
+    "IRS COLA Increases for Dollar Limitations on Retirement Plans - irs.gov",
+    "IRS Topic No. 409, Capital Gains and Losses - irs.gov",
+    "IRS Form 8960 and Instructions, Net Investment Income Tax - irs.gov",
+    "IRS Section 199A Qualified Business Income Deduction - irs.gov",
+    "IRS Education Credits (AOTC and LLC) - irs.gov",
+    "IRS Schedule 8812, Child Tax Credit - irs.gov",
     "One Big Beautiful Bill Act (OBBBA), signed July 4 2025 - CTC increase to $2,200, standard deduction increase, permanent TCJA provisions",
     "SECURE 2.0 Act - enhanced 401(k) catch-up contribution $11,250 for ages 60-63 in 2025",
 ]
