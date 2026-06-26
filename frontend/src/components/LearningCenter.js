@@ -58,9 +58,8 @@ const categories = useMemo(() => {
     let result = sections;
 
     // Apply category filter
-    if (activeCategory) {
-      result = result.filter((s) => s.category === activeCategory);
-    }
+   if (activeCategory) {
+     result = result.filter((s) => normalizeCategory(s.category) === activeCategory);
 
     // Apply search filter
     const q = query.trim().toLowerCase();
