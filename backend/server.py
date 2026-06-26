@@ -608,6 +608,10 @@ def build_report_pdf(ret: dict) -> bytes:
     pdf.set_font("Helvetica", "", 7.5)
     pdf.set_text_color(*SLATE)
     for s in sources:
+        # Estimate line height needed — if not enough space, add page
+        lines_needed = max(1, len(_clean(f"- {s}")) // 90 + 1)
+        if pdf.get_y() + (lines_needed * 4.5) + 20 > pdf.h - pdf.b_margin:
+            pdf.add_page()
         pdf.multi_cell(W, 4.5, _clean(f"- {s}"))
     pdf.ln(3)
 
