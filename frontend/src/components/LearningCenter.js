@@ -33,17 +33,26 @@ export default function LearningCenter({ heading = true }) {
   }, []);
 
   // Get unique categories from sections, sorted by CATEGORY_ORDER
-  const categories = useMemo(() => {
-    const found = [...new Set(sections.map((s) => s.category))];
-    return found.sort((a, b) => {
-      const ai = CATEGORY_ORDER.indexOf(a);
-      const bi = CATEGORY_ORDER.indexOf(b);
-      if (ai === -1 && bi === -1) return a.localeCompare(b);
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
-      return ai - bi;
-    });
-  }, [sections]);
+  // Normalize a category string — trim whitespace, collapse internal spaces
+const normalizeCategory = (cat) =>
+  (cat || "").trim().replace(/\s+/g, " ");
+
+const categories = useMemo(() => {
+  const seen = new Map(); // normalized → display value
+  sections.forEach((s) => {
+    const norm = normalizeCategory(s.category);
+    if (!seen.has(norm)) seen.set(norm, norm);
+  });
+  const found = [...seen.keys()];
+  return found.sort((a, b) => {
+    const ai = CATEGORY_ORDER.indexOf(a);
+    const bi = CATEGORY_ORDER.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+}, [sections]);
 
   const filtered = useMemo(() => {
     let result = sections;
