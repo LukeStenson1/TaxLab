@@ -616,16 +616,17 @@ def build_report_pdf(ret: dict) -> bytes:
     pdf.ln(3)
 
     # ── Disclaimer ────────────────────────────────────────────────────────────
+    disclaimer = _clean(
+        "This is for educational purposes only and does not constitute tax or financial advice. "
+        "TaxLens calculations are grounded in official IRS figures for the relevant tax year and are "
+        "estimates intended to help you prepare questions for a licensed professional."
+    )
+    lines_needed = max(1, len(disclaimer) // 90 + 1)
+    if pdf.get_y() + (lines_needed * 4.5) + 10 > pdf.h - pdf.b_margin:
+        pdf.add_page()
     pdf.set_font("Helvetica", "I", 7.5)
     pdf.set_text_color(*SLATE)
-    pdf.multi_cell(
-        W, 4.5,
-        _clean(
-            "This is for educational purposes only and does not constitute tax or financial advice. "
-            "TaxLens calculations are grounded in official IRS figures for the relevant tax year and are "
-            "estimates intended to help you prepare questions for a licensed professional."
-        ),
-    )
+    pdf.multi_cell(W, 4.5, disclaimer)
 
     out = pdf.output()
     return bytes(out)
