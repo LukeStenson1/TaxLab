@@ -605,29 +605,21 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.multi_cell(W, 5, _clean(ins.get("askYourCPA", "")), fill=True)
         pdf.ln(5)
 
-    # Sources & Disclaimer — condensed to stay on one page
+    # Sources & Methodology
     pdf.ln(2)
     pdf.set_font("Helvetica", "B", 9)
     pdf.set_text_color(*NAVY)
     pdf.cell(0, 6, "Sources & Methodology", ln=1)
-    pdf.set_font("Helvetica", "", 7)
+    pdf.set_font("Helvetica", "", 7.5)
     pdf.set_text_color(*SLATE)
-
-    # Single condensed source line instead of a list
-    year_ref = sources[0] if sources else ""
-    pdf.multi_cell(W, 3.8, _clean(
-        f"{year_ref}. Additional sources: IRS Rev. Proc. (irs.gov/newsroom), "
-        f"IRS COLA notices (irs.gov/retirement-plans), IRS Topic 409 (capital gains), "
-        f"IRS Form 8960 (NIIT), IRS Sec. 199A (QBI), IRS Schedule 8812 (CTC), "
-        f"OBBBA (signed July 4 2025), SECURE 2.0 Act. "
-        f"Full methodology at taxlens.site/learn"
-    ))
-    pdf.ln(2)
+    for s in sources:
+        pdf.multi_cell(W, 4, _clean(f"- {s}"))
+    pdf.ln(3)
 
     # Disclaimer
-    pdf.set_font("Helvetica", "I", 7)
+    pdf.set_font("Helvetica", "I", 7.5)
     pdf.set_text_color(*SLATE)
-    pdf.multi_cell(W, 3.8, _clean(
+    pdf.multi_cell(W, 4, _clean(
         "This is for educational purposes only and does not constitute tax or financial advice. "
         "TaxLens calculations are grounded in official IRS figures for the relevant tax year and are "
         "estimates intended to help you prepare questions for a licensed professional."
