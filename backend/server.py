@@ -519,11 +519,11 @@ def build_report_pdf(ret: dict) -> bytes:
 
     pdf = FPDF(format="A4")
     pdf.set_margins(15, 15, 15)
-    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.set_auto_page_break(auto=True, margin=20)
     pdf.add_page()
     W = pdf.w - pdf.l_margin - pdf.r_margin
 
-    # Header band
+    # ── Header ──────────────────────────────────────────────────────────────
     pdf.set_fill_color(*NAVY)
     pdf.rect(0, 0, pdf.w, 34, "F")
     pdf.set_xy(pdf.l_margin, 10)
@@ -534,11 +534,10 @@ def build_report_pdf(ret: dict) -> bytes:
     pdf.set_font("Helvetica", "", 11)
     pdf.set_text_color(180, 190, 205)
     pdf.cell(0, 6, _clean(f"Tax Year {year} Insight Report"), ln=1)
-
     pdf.set_y(42)
-    pdf.set_text_color(*NAVY)
 
-    # Summary stats
+    # ── Summary stats ────────────────────────────────────────────────────────
+    pdf.set_text_color(*NAVY)
     pdf.set_font("Helvetica", "B", 13)
     pdf.cell(0, 8, "Summary", ln=1)
     pdf.ln(1)
@@ -560,33 +559,30 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.cell(col_w, 8, _clean(value), border=0, align="L")
     pdf.ln(12)
 
-    # Insights
+    # ── Insights ─────────────────────────────────────────────────────────────
     pdf.set_font("Helvetica", "B", 13)
     pdf.set_text_color(*NAVY)
     pdf.cell(0, 8, _clean(f"Your Insights ({len(insights)}) - ranked by estimated dollar impact"), ln=1)
     pdf.ln(2)
 
-    IMPACT_COL = 45  # fixed width for the dollar impact column
+    IMPACT_COL = 45
 
     for idx, ins in enumerate(insights):
         impact = ins.get("dollarImpact", 0) or 0
 
-        # Title + impact on same line
+        # Title row
         y_before = pdf.get_y()
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(*NAVY)
-        title_text = _clean(f"{idx + 1}. {ins.get('title', 'Insight')}")
-        pdf.multi_cell(W - IMPACT_COL, 6, title_text)
+        pdf.multi_cell(W - IMPACT_COL, 6, _clean(f"{idx + 1}. {ins.get('title', 'Insight')}"))
         y_after = pdf.get_y()
 
-        # Impact aligned to right — go back to same Y as title start
+        # Impact amount — right aligned
         pdf.set_xy(pdf.l_margin + W - IMPACT_COL, y_before)
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(*GREEN)
         sign = "+" if impact >= 0 else "-"
         pdf.cell(IMPACT_COL, 6, _clean(f"{sign}{_usd(abs(impact))}"), align="R")
-
-        # Move to after the title block
         pdf.set_xy(pdf.l_margin, y_after)
 
         # Explanation
@@ -595,7 +591,7 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.multi_cell(W, 5, _clean(ins.get("explanation", "")))
         pdf.ln(1)
 
-        # Ask your CPA box — constrained to full W
+        # Ask your CPA
         pdf.set_fill_color(*LIGHT)
         pdf.set_font("Helvetica", "B", 8)
         pdf.set_text_color(*SLATE)
@@ -603,28 +599,30 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.set_font("Helvetica", "I", 9)
         pdf.set_text_color(40, 50, 65)
         pdf.multi_cell(W, 5, _clean(ins.get("askYourCPA", "")), fill=True)
-        pdf.ln(5)
+        pdf.ln(6)
 
-    # Sources & Methodology
-    pdf.ln(2)
-    pdf.set_font("Helvetica", "B", 9)
+    # ── Sources ───────────────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "B", 11)
     pdf.set_text_color(*NAVY)
-    pdf.cell(0, 6, "Sources & Methodology", ln=1)
+    pdf.cell(0, 7, "Sources & Methodology", ln=1)
     pdf.set_font("Helvetica", "", 7.5)
     pdf.set_text_color(*SLATE)
     for s in sources:
-        pdf.multi_cell(W, 4, _clean(f"- {s}"))
+        pdf.multi_cell(W, 4.5, _clean(f"- {s}"))
     pdf.ln(3)
 
-    # Disclaimer
+    # ── Disclaimer ────────────────────────────────────────────────────────────
     pdf.set_font("Helvetica", "I", 7.5)
     pdf.set_text_color(*SLATE)
-    pdf.multi_cell(W, 4, _clean(
-        "This is for educational purposes only and does not constitute tax or financial advice. "
-        "TaxLens calculations are grounded in official IRS figures for the relevant tax year and are "
-        "estimates intended to help you prepare questions for a licensed professional."
-    ))
-    
+    pdf.multi_cell(
+        W, 4.5,
+        _clean(
+            "This is for educational purposes only and does not constitute tax or financial advice. "
+            "TaxLens calculations are grounded in official IRS figures for the relevant tax year and are "
+            "estimates intended to help you prepare questions for a licensed professional."
+        ),
+    )
+
     out = pdf.output()
     return bytes(out)
 
