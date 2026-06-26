@@ -610,17 +610,28 @@ def build_report_pdf(ret: dict) -> bytes:
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(*NAVY)
         pdf.cell(0, 7, "Sources & Methodology", ln=1)
-        pdf.set_font("Helvetica", "", 8)
+        pdf.set_font("Helvetica", "", 7.5)
         pdf.set_text_color(*SLATE)
-        for s in sources:
-            pdf.multi_cell(W, 4.5, _clean(f"- {s}"))
-        pdf.ln(2)
+        # Show year-specific source first, then cap at 4 general sources
+        year_source = sources[0] if sources else None
+        general_sources = sources[1:5]  # max 4 general sources
+        remaining = len(sources) - 5
+        if year_source:
+            pdf.multi_cell(W, 4, _clean(f"- {year_source}"))
+        for s in general_sources:
+            pdf.multi_cell(W, 4, _clean(f"- {s}"))
+        if remaining > 0:
+            pdf.multi_cell(W, 4, _clean(
+                f"- Plus {remaining} additional IRS sources. "
+                f"Full methodology at taxlens.site/learn"
+            ))
+        pdf.ln(3)
 
-    # Disclaimer
-    pdf.set_font("Helvetica", "I", 8)
+    # Disclaimer — always on same page as sources
+    pdf.set_font("Helvetica", "I", 7.5)
     pdf.set_text_color(*SLATE)
     pdf.multi_cell(
-        W, 4.5,
+        W, 4,
         _clean(
             "This is for educational purposes only and does not constitute tax or financial advice. "
             "TaxLens calculations are grounded in official IRS figures for the relevant tax year and are "
