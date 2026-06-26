@@ -3,7 +3,6 @@ import { Search, BookOpen, ChevronDown, X } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 
-// Display order for categories
 const CATEGORY_ORDER = [
   "Filing Basics",
   "Income Types",
@@ -16,6 +15,13 @@ const CATEGORY_ORDER = [
   "Planning & Strategy",
   "Advanced",
 ];
+
+const normalizeCategory = (cat) =>
+  (cat || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 
 export default function LearningCenter({ heading = true }) {
   const [sections, setSections] = useState([]);
@@ -32,36 +38,28 @@ export default function LearningCenter({ heading = true }) {
       .finally(() => setLoading(false));
   }, []);
 
-  // Get unique categories from sections, sorted by CATEGORY_ORDER
-  // Normalize a category string — trim whitespace, collapse internal spaces
-const normalizeCategory = (cat) =>
-  (cat || "").trim().replace(/\s+/g, " ");
-
-const categories = useMemo(() => {
-  const seen = new Map(); // normalized → display value
-  sections.forEach((s) => {
-    const norm = normalizeCategory(s.category);
-    if (!seen.has(norm)) seen.set(norm, norm);
-  });
-  const found = [...seen.keys()];
-  return found.sort((a, b) => {
-    const ai = CATEGORY_ORDER.indexOf(a);
-    const bi = CATEGORY_ORDER.indexOf(b);
-    if (ai === -1 && bi === -1) return a.localeCompare(b);
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  });
-}, [sections]);
+  const categories = useMemo(() => {
+    const seen = new Set();
+    sections.forEach((s) => seen.add(normalizeCategory(s.category)));
+    return [...seen].sort((a, b) => {
+      const ai = CATEGORY_ORDER.indexOf(a);
+      const bi = CATEGORY_ORDER.indexOf(b);
+      if (ai === -1 && bi === -1) return a.localeCompare(b);
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [sections]);
 
   const filtered = useMemo(() => {
     let result = sections;
 
-    // Apply category filter
-   if (activeCategory) {
-     result = result.filter((s) => normalizeCategory(s.category) === activeCategory);
+    if (activeCategory) {
+      result = result.filter(
+        (s) => normalizeCategory(s.category) === activeCategory
+      );
+    }
 
-    // Apply search filter
     const q = query.trim().toLowerCase();
     if (q) {
       result = result.filter(
@@ -149,7 +147,7 @@ const categories = useMemo(() => {
       )}
 
       {/* Active filter indicator */}
-      {(activeCategory || query.trim()) && !loading && (
+      {hasActiveFilter && !loading && (
         <p className="mt-3 text-xs text-slate-500">
           Showing {filtered.length} topic{filtered.length !== 1 ? "s" : ""}
           {activeCategory ? ` in ${activeCategory}` : ""}
@@ -198,7 +196,7 @@ const categories = useMemo(() => {
                 >
                   <span className="flex items-center gap-3">
                     <span className="hidden rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal-700 sm:inline">
-                      {s.category}
+                      {normalizeCategory(s.category)}
                     </span>
                     <span className="font-heading text-base font-semibold text-navy-900">
                       {s.title}
