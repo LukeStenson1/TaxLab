@@ -569,21 +569,24 @@ def build_report_pdf(ret: dict) -> bytes:
 
     for idx, ins in enumerate(insights):
         impact = ins.get("dollarImpact", 0) or 0
+        title_text = _clean(f"{idx + 1}. {ins.get('title', 'Insight')}")
+        sign = "+" if impact >= 0 else "-"
+        impact_text = _clean(f"{sign}{_usd(abs(impact))}")
 
-        # Title row
-        y_before = pdf.get_y()
+        # Estimate if title + explanation + CPA box fits on current page
+        # If not enough space for at least the title + 2 lines, start new page
+        if pdf.get_y() + 30 > pdf.h - pdf.b_margin:
+            pdf.add_page()
+
+        # Title and impact on same line
+        title_y = pdf.get_y()
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(*NAVY)
-        pdf.multi_cell(W - IMPACT_COL, 6, _clean(f"{idx + 1}. {ins.get('title', 'Insight')}"))
-        y_after = pdf.get_y()
-
-        # Impact amount — right aligned
-        pdf.set_xy(pdf.l_margin + W - IMPACT_COL, y_before)
+        pdf.set_xy(pdf.l_margin, title_y)
+        pdf.cell(W - IMPACT_COL, 6, title_text, ln=0)
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(*GREEN)
-        sign = "+" if impact >= 0 else "-"
-        pdf.cell(IMPACT_COL, 6, _clean(f"{sign}{_usd(abs(impact))}"), align="R")
-        pdf.set_xy(pdf.l_margin, y_after)
+        pdf.cell(IMPACT_COL, 6, impact_text, align="R", ln=1)
 
         # Explanation
         pdf.set_font("Helvetica", "", 10)
